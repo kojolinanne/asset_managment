@@ -50,6 +50,7 @@ deployAllSheets()  // 位於 deploy.js
 - `computer-report/` - 電腦資產報告模組
 - `dashboard-app/` - 資料儀表板模組
 - `itasset-warning/` - IT 資產警示模組
+- `isms-connect-asset/` - 資訊資產對照模組
 
 每個子專案都有獨立的 `appsscript.json`, `env.js`, `code.js`。
 
