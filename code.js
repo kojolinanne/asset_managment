@@ -774,7 +774,8 @@ function getUserStateData(forceUserScope) {
     status: asset.assetStatus,
     category: asset.assetCategory,
     userName: asset.userName || '無', // 使用者名稱，物品總表顯示「無」
-    sourceSheet: asset.sourceSheet
+    sourceSheet: asset.sourceSheet,
+    isItAsset: asset.isItAsset || ''  // ✨ ISMS：是否為資訊資產（X欄）
   }));
 
   return {

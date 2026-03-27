@@ -10192,26 +10192,16 @@
             const [isResetting, setIsResetting] = useState(false);
             const normalizedSessionCount = typeof sessionCount === 'number' ? sessionCount : 0;
 
-            // ✨ ISMS 資訊資產分類狀態
-            const [ismsExpanded, setIsmsExpanded] = useState(false);
-            const [isItAsset, setIsItAsset] = useState(false);
-            const [selectedIsmsAssetId, setSelectedIsmsAssetId] = useState('');
-            const [ismsSearchKeyword, setIsmsSearchKeyword] = useState('');
+            // ✨ ISMS 資訊資產分類狀態（直接從 prop 計算初始值，避免 useEffect 延遲渲染導致 toggle 閃爍或停在 OFF）
             const ismsAssetsList = ismsAssetsProp || [];
             const ismsFeatureEnabled = ismsEnabledProp || false;
-
-            // 初始化：如果資產已有 ISMS 標記，預設開啟
-            useEffect(() => {
-                if (!isBatch && asset) {
-                    if (asset.isItAsset === '是') {
-                        setIsItAsset(true);
-                        setIsmsExpanded(true);
-                    }
-                    if (asset.ismsAssetId) {
-                        setSelectedIsmsAssetId(asset.ismsAssetId);
-                    }
-                }
-            }, [asset, isBatch]);
+            const _isItAssetInit = !isBatch && !!asset && String(asset.isItAsset || '').trim() === '是';
+            const [ismsExpanded, setIsmsExpanded] = useState(_isItAssetInit);
+            const [isItAsset, setIsItAsset] = useState(_isItAssetInit);
+            const [selectedIsmsAssetId, setSelectedIsmsAssetId] = useState(
+                !isBatch && asset ? String(asset.ismsAssetId || '').trim() : ''
+            );
+            const [ismsSearchKeyword, setIsmsSearchKeyword] = useState('');
 
             // 過濾 ISMS 資產清單
             const filteredIsmsAssets = useMemo(() => {
