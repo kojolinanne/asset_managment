@@ -6336,6 +6336,19 @@ function getPendingInventoryAssignments(forceUserScope) {
       };
     }
 
+    // ✨ 從主表建立 IS_IT_ASSET 對照（單一事實來源）
+    const masterIsItAssetMap = {};
+    const propertyMasterSheet = ss.getSheetByName(PROPERTY_MASTER_SHEET_NAME);
+    const itemMasterSheet = ss.getSheetByName(ITEM_MASTER_SHEET_NAME);
+    [propertyMasterSheet, itemMasterSheet].forEach(sheet => {
+      if (!sheet || sheet.getLastRow() <= 1) return;
+      const masterData = sheet.getRange(2, 1, sheet.getLastRow() - 1, PROPERTY_COLUMN_INDICES.IS_IT_ASSET).getValues();
+      masterData.forEach(row => {
+        const aid = row[PROPERTY_COLUMN_INDICES.ASSET_ID - 1];
+        if (aid) masterIsItAssetMap[String(aid).trim()] = row[PROPERTY_COLUMN_INDICES.IS_IT_ASSET - 1] || '';
+      });
+    });
+
     // 讀取包含 ISMS 欄位的資料（最多到第 14 欄）
     const detailLastCol = Math.max(inventoryDetailSheet.getLastColumn(), ID_ASSIGNED_USER_COLUMN_INDEX);
     const detailReadCols = Math.min(detailLastCol, ID_ISMS_ASSET_ID_COLUMN_INDEX);
@@ -6399,7 +6412,10 @@ function getPendingInventoryAssignments(forceUserScope) {
         assignedUserLabel: assignedUserLabel,
         assignedGroup: assignedGroup,
         assignedUserType: assignedUserType,
-        isItAsset: detailReadCols >= ID_IS_IT_ASSET_COLUMN_INDEX ? (row[ID_IS_IT_ASSET_COLUMN_INDEX - 1] || '') : '', // ✨ ISMS
+        // ✨ isItAsset 以主表（財產/物品總表 X欄）為單一事實來源，主表無資料時退回盤點明細快照
+        isItAsset: masterIsItAssetMap[String(assetId).trim()] !== undefined && masterIsItAssetMap[String(assetId).trim()] !== ''
+          ? masterIsItAssetMap[String(assetId).trim()]
+          : (detailReadCols >= ID_IS_IT_ASSET_COLUMN_INDEX ? (row[ID_IS_IT_ASSET_COLUMN_INDEX - 1] || '') : ''),
         ismsAssetId: detailReadCols >= ID_ISMS_ASSET_ID_COLUMN_INDEX ? (row[ID_ISMS_ASSET_ID_COLUMN_INDEX - 1] || '') : '' // ✨ ISMS
       });
     });
