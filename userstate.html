@@ -10162,14 +10162,14 @@
                         <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 rounded-b-2xl flex justify-end gap-3">
                             <button
                                 onClick={onClose}
-                                disabled={isSubmitting || isBatchImporting}
+                                disabled={isSubmitting}
                                 className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-50"
                             >
                                 取消
                             </button>
                             <button
                                 onClick={handleSubmit}
-                                disabled={isLoading || isSubmitting || isBatchImporting}
+                                disabled={isLoading || isSubmitting}
                                 className="px-6 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                             >
                                 {isSubmitting ? (
