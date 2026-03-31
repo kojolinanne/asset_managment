@@ -135,6 +135,7 @@
   let Scanner_initialized = false;
   let Scanner_popupWindow = null;
   let Scanner_messageListener = null;
+  let Scanner_popupWatcher = null;
 
   // ========== 音效 Base64 (嗶聲) ==========
   const BEEP_SOUND = 'data:audio/mpeg;base64,//uQxAAAAAAAAAAAAAAAAAAAAAAAWGluZwAAAA8AAAACAAAESAAzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMz////////////////////////////////////////////////////////////AAABLAMAAIEQAABgAAACRAAAAAAAAARIAAAAAAAAAAAAAAAAAAAAAA==';
@@ -298,6 +299,16 @@
     }
   };
 
+  function Scanner_notifyApp(eventName, payload) {
+    const handler = window[eventName];
+    if (typeof handler !== 'function') return;
+    try {
+      handler(payload || {});
+    } catch (error) {
+      console.error(`[Scanner] ${eventName} 執行失敗:`, error);
+    }
+  }
+
   function Scanner_cleanupListener() {
     if (Scanner_messageListener) {
       window.removeEventListener('message', Scanner_messageListener);
@@ -306,22 +317,17 @@
   }
 
   function Scanner_handlePopupBlocked() {
+    const message = '瀏覽器封鎖了掃描視窗，請允許彈出視窗後重試';
     console.warn('[Scanner] popup 被封鎖');
-    Scanner_updateStatus('瀏覽器封鎖了掃描視窗，請允許彈出視窗後重試', 'error');
-
-    const zone = document.getElementById('Scanner_zone');
-    if (zone) {
-      const guide = document.createElement('div');
-      guide.className = 'scan-status-error';
-      guide.style.cssText = 'padding:10px;margin-top:8px;font-size:13px;';
-      guide.innerHTML = '<strong>掃描器視窗被封鎖</strong><br>請在網址列右側點擊「允許彈出視窗」，再點一次掃描按鈕。<br><small>或直接在搜尋框輸入條碼後按 Enter</small>';
-      if (!zone.querySelector('.scan-status-error')) {
-        zone.appendChild(guide);
-        setTimeout(() => guide.remove(), 8000);
-      }
-    }
-
-    Scanner_active = false;
+    Scanner_updateStatus(message, 'error');
+    Scanner_notifyApp('AppScanner_onError', {
+      message: message,
+      reason: 'popup-blocked'
+    });
+    Scanner_stop({
+      reason: 'popup-blocked',
+      preserveStatus: true
+    });
   }
 
   function Scanner_start() {
@@ -350,15 +356,17 @@
       if (event.data.source !== 'github-pages-scanner') return;
       console.log('[Scanner] 收到掃描結果:', event.data.raw);
       Scanner_processBarcode(event.data.raw);
-      Scanner_stop();
+      Scanner_stop({ reason: 'scan-complete' });
     };
     window.addEventListener('message', Scanner_messageListener);
 
     // 監控 popup 是否被使用者手動關閉
-    const checkClosed = setInterval(() => {
+    if (Scanner_popupWatcher) {
+      clearInterval(Scanner_popupWatcher);
+    }
+    Scanner_popupWatcher = setInterval(() => {
       if (Scanner_popupWindow && Scanner_popupWindow.closed) {
-        clearInterval(checkClosed);
-        if (Scanner_active) Scanner_stop();
+        Scanner_stop({ reason: 'popup-closed' });
       }
     }, 500);
 
@@ -366,9 +374,17 @@
   }
   window.Scanner_start = Scanner_start;
 
-  function Scanner_stop() {
-    if (!Scanner_active) return;
+  function Scanner_stop(options) {
+    const {
+      reason = 'stopped',
+      preserveStatus = false,
+      notifyApp = true
+    } = options || {};
 
+    if (Scanner_popupWatcher) {
+      clearInterval(Scanner_popupWatcher);
+      Scanner_popupWatcher = null;
+    }
     if (Scanner_popupWindow && !Scanner_popupWindow.closed) {
       Scanner_popupWindow.close();
     }
@@ -381,7 +397,12 @@
 
     Scanner_active = false;
     console.log('[Scanner] 掃描器已停止');
-    Scanner_updateStatus('', '');
+    if (!preserveStatus) {
+      Scanner_updateStatus('', '');
+    }
+    if (notifyApp) {
+      Scanner_notifyApp('AppScanner_onClosed', { reason: reason });
+    }
   }
   window.Scanner_stop = Scanner_stop;
 
@@ -408,9 +429,11 @@
       }
 
       Scanner_playSound();
+      return { success: true, asset: asset, assetId: asset.id, code: formattedCode };
     } else {
       BatchList_showToast(`未找到資產：${formattedCode}`, 'error');
       Scanner_updateStatus(`✗ 未找到資產：${formattedCode}`, 'error');
+      return { success: false, asset: null, assetId: formattedCode, code: formattedCode };
     }
   }
   window.Scanner_processBarcode = Scanner_processBarcode;

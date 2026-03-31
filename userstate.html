@@ -10704,7 +10704,7 @@
                 asset: null,
                 displayMode: 'modal'
             });
-            const closeActionPanelRef = useRef(null);
+            const scannerCloseBehaviorRef = useRef({ keepActionPanelOnClose: false });
 
             const isAdminView = isAdmin && viewMode === 'admin';
             const isAdvancedMode = cartSnapshot.mode === 'ADVANCED';
@@ -10950,8 +10950,29 @@
                 !!inventoryStatusByAsset[assetId]
             ), [inventoryStatusByAsset]);
 
+            const syncScannerUiClosed = useCallback((options = {}) => {
+                const { keepActionPanel = false, keepPending = false } = options;
+                setIsScannerOpen(false);
+                const zone = document.getElementById('Scanner_zone');
+                if (zone) {
+                    zone.style.display = 'none';
+                }
+                if (!keepActionPanel) {
+                    setActionPanelState({
+                        isOpen: false,
+                        assetId: '',
+                        asset: null,
+                        displayMode: 'modal'
+                    });
+                }
+                if (!keepPending && window.AssetCartStore) {
+                    window.AssetCartStore.clearPendingAsset();
+                }
+                scannerCloseBehaviorRef.current.keepActionPanelOnClose = false;
+            }, []);
+
             const closeActionPanel = useCallback((options = {}) => {
-                const { skipScannerStatus = false, keepPending = false } = options;
+                const { keepPending = false } = options;
                 setActionPanelState({
                     isOpen: false,
                     assetId: '',
@@ -10961,17 +10982,15 @@
                 if (!keepPending && window.AssetCartStore) {
                     window.AssetCartStore.clearPendingAsset();
                 }
-                if (!skipScannerStatus && isScannerOpen && typeof window.Scanner_updateStatus === 'function') {
-                    window.Scanner_updateStatus('掃描器運作中...', 'success');
-                }
-            }, [isScannerOpen]);
+                scannerCloseBehaviorRef.current.keepActionPanelOnClose = false;
+            }, []);
 
             const openActionPanel = useCallback((assetId, options = {}) => {
                 if (!window.AssetCartStore || !window.AssetCartStore.isAdvancedMode()) return;
                 const normalizedId = String(assetId || '').trim();
                 if (!normalizedId) return;
                 if (window.AssetCartStore.isPendingAction()) return;
-                const displayMode = options.displayMode || (isScannerOpen ? 'embedded' : 'modal');
+                const displayMode = options.displayMode || 'modal';
                 const asset = resolveAssetDetail(normalizedId);
                 window.AssetCartStore.setPendingAssetId(normalizedId);
                 setActionPanelState({
@@ -10983,7 +11002,7 @@
                 if (options.source === 'camera' && typeof window.Scanner_updateStatus === 'function') {
                     window.Scanner_updateStatus('已掃描，請選擇動作', 'success');
                 }
-            }, [isScannerOpen, resolveAssetDetail]);
+            }, [resolveAssetDetail]);
 
             const commitActionSelection = useCallback((actionType, statusValue = null) => {
                 if (!window.AssetCartStore || !actionPanelState.assetId) return;
@@ -11052,14 +11071,11 @@
             const handleQueueModalClose = useCallback(() => {
                 if (quickActionMode === 'queue' && window.AssetCartStore) {
                     window.AssetCartStore.clearPendingAsset();
-                    if (isScannerOpen && typeof window.Scanner_updateStatus === 'function') {
-                        window.Scanner_updateStatus('掃描器運作中...', 'success');
-                    }
                 }
                 setQuickActionModalType(null);
                 setSelectedAsset(null);
                 setQuickActionMode('submit');
-            }, [quickActionMode, isScannerOpen]);
+            }, [quickActionMode]);
 
             const openQueueActionModal = useCallback((actionType) => {
                 const modalType = ACTION_MODAL_BY_TYPE[actionType];
@@ -11086,7 +11102,7 @@
                 setSelectedAsset(asset);
                 setQuickActionMode('queue');
                 setQuickActionModalType(modalType);
-                closeActionPanel({ keepPending: true, skipScannerStatus: true });
+                closeActionPanel({ keepPending: true });
             }, [actionPanelState.asset, actionPanelState.assetId, closeActionPanel, resolveAssetIsTask, resolveAssetDetail, transferOptions, lendingOptions]);
 
             const handleModeToggle = useCallback((nextMode) => {
@@ -11127,6 +11143,7 @@
                         ? (window.BatchList_findAsset(formatted) || window.BatchList_findAsset(rawValue))
                         : null) || (window.allAssets || []).find(entry => entry.id === formatted || entry.id === rawValue);
                     if (!asset) {
+                        scannerCloseBehaviorRef.current.keepActionPanelOnClose = false;
                         const message = `未找到資產：${formatted}`;
                         if (typeof window.BatchList_showToast === 'function') {
                             window.BatchList_showToast(message, 'error');
@@ -11134,63 +11151,74 @@
                         if (typeof window.Scanner_updateStatus === 'function' && options.source === 'camera') {
                             window.Scanner_updateStatus(message, 'error');
                         }
-                        return;
+                        return { success: false, assetId: formatted, message: message };
                     }
                     const assetId = asset.id || asset.assetId || formatted;
-                    const displayMode = options.source === 'camera' ? 'embedded' : 'modal';
+                    scannerCloseBehaviorRef.current.keepActionPanelOnClose = options.source === 'camera';
+                    const displayMode = 'modal';
                     openActionPanel(assetId, { displayMode: displayMode, source: options.source });
                     if (typeof window.Scanner_playSound === 'function') {
                         window.Scanner_playSound();
                     }
+                    return { success: true, assetId: assetId, asset: asset };
                 };
-                const toggleScannerShell = (options = {}) => {
-                    const { onClose } = options;
+                const toggleScannerShell = () => {
                     const zone = document.getElementById('Scanner_zone');
                     if (!zone) return;
-                    const isOpen = zone && zone.style.display && zone.style.display !== 'none';
-                    if (isOpen) {
-                        if (typeof window.Scanner_toggle_base === 'function') {
-                            window.Scanner_toggle_base();
-                        } else if (typeof window.Scanner_stop === 'function') {
-                            window.Scanner_stop();
-                            zone.style.display = 'none';
-                        }
-                        setIsScannerOpen(false);
-                        if (typeof onClose === 'function') {
-                            onClose();
+                    if (isScannerOpen) {
+                        scannerCloseBehaviorRef.current.keepActionPanelOnClose = false;
+                        if (typeof window.Scanner_stop === 'function') {
+                            window.Scanner_stop({ reason: 'manual-close' });
+                        } else {
+                            syncScannerUiClosed();
                         }
                         return;
                     }
-                    if (typeof window.Scanner_toggle_base === 'function') {
-                        window.Scanner_toggle_base();
-                    } else if (typeof window.Scanner_start === 'function') {
-                        zone.style.display = 'block';
+                    if (typeof window.Scanner_ensureTemplate === 'function' && !window.Scanner_ensureTemplate()) {
+                        alert('掃描器初始化失敗，請重新整理頁面');
+                        return;
+                    }
+                    scannerCloseBehaviorRef.current.keepActionPanelOnClose = false;
+                    zone.style.display = 'block';
+                    setIsScannerOpen(true);
+                    if (typeof window.Scanner_start === 'function') {
                         window.Scanner_start();
                     }
-                    setIsScannerOpen(true);
                 };
                 window.AdvancedMode_toggleScanner = () => {
-                    toggleScannerShell({
-                        onClose: () => closeActionPanel({ skipScannerStatus: true })
-                    });
+                    toggleScannerShell();
                 };
                 window.App_toggleScanner = () => {
                     toggleScannerShell();
                 };
-            }, [closeActionPanel, openActionPanel]);
-
-            useEffect(() => {
-                closeActionPanelRef.current = closeActionPanel;
-            }, [closeActionPanel]);
+                window.AppScanner_onError = (payload = {}) => {
+                    const message = String(payload.message || '掃描器發生錯誤');
+                    if (typeof window.BatchList_showToast === 'function') {
+                        window.BatchList_showToast(message, 'error');
+                    }
+                };
+                window.AppScanner_onClosed = (payload = {}) => {
+                    const keepActionPanel = payload.reason === 'scan-complete' && scannerCloseBehaviorRef.current.keepActionPanelOnClose;
+                    syncScannerUiClosed({
+                        keepActionPanel: keepActionPanel,
+                        keepPending: keepActionPanel
+                    });
+                };
+                return () => {
+                    delete window.AppScanner_onError;
+                    delete window.AppScanner_onClosed;
+                };
+            }, [isScannerOpen, openActionPanel, syncScannerUiClosed]);
 
             useEffect(() => {
                 if (!isAdvancedMode) {
-                    setIsScannerOpen(false);
-                    if (closeActionPanelRef.current) {
-                        closeActionPanelRef.current({ skipScannerStatus: true });
+                    if (typeof window.Scanner_stop === 'function') {
+                        window.Scanner_stop({ reason: 'mode-switch' });
+                    } else {
+                        syncScannerUiClosed();
                     }
                 }
-            }, [isAdvancedMode]);
+            }, [isAdvancedMode, syncScannerUiClosed]);
 
             // ========== 盤點功能輔助函數 ==========
 
@@ -13509,17 +13537,6 @@
                     )}
                     <div className={`advanced-scanner-shell ${isScannerOpen ? 'advanced-scanner-shell--open' : ''}`}>
                         <div id="Scanner_zone" className="scanner-zone mb-6" style={{ display: 'none' }}></div>
-                        {isAdvancedMode && isScannerOpen && (
-                            <ActionPanel
-                                asset={actionPanelState.isOpen ? actionPanelState.asset : null}
-                                displayMode="embedded"
-                                hasInventoryTask={actionPanelState.isOpen ? hasInventoryTaskForActionPanel(actionPanelState.assetId) : false}
-                                inventoryStatusLabel={actionPanelState.isOpen ? resolveInventoryStatusLabel(actionPanelState.assetId) : '無盤點任務'}
-                                onSelectAction={(actionType) => openQueueActionModal(actionType)}
-                                onSelectInventory={(status) => commitActionSelection('INVENTORY', status)}
-                                onClose={closeActionPanel}
-                            />
-                        )}
                     </div>
 
                     {/* ✨ 同組功能提示訊息 */}
