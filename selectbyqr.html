@@ -407,6 +407,13 @@
   window.Scanner_stop = Scanner_stop;
 
   function Scanner_processBarcode(rawCode) {
+    // 進階模式：使用專用的 handleScan，正確設定 scannerCompletionRef
+    if (typeof window.AdvancedMode_handleScan === 'function' &&
+        window.AssetCartStore && window.AssetCartStore.isAdvancedMode()) {
+      window.AdvancedMode_handleScan(rawCode, { source: 'camera' });
+      return;
+    }
+
     // 格式化條碼
     const formattedCode = Scanner_formatBarcode(rawCode);
     console.log('[Scanner] 格式化條碼:', rawCode, '->', formattedCode);

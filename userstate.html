@@ -10704,7 +10704,11 @@
                 asset: null,
                 displayMode: 'modal'
             });
-            const scannerCloseBehaviorRef = useRef({ keepActionPanelOnClose: false });
+            const scannerCompletionRef = useRef({
+                outcome: 'idle',
+                assetId: '',
+                message: ''
+            });
 
             const isAdminView = isAdmin && viewMode === 'admin';
             const isAdvancedMode = cartSnapshot.mode === 'ADVANCED';
@@ -10951,24 +10955,26 @@
             ), [inventoryStatusByAsset]);
 
             const syncScannerUiClosed = useCallback((options = {}) => {
-                const { keepActionPanel = false, keepPending = false } = options;
+                const { keepPending = false } = options;
                 setIsScannerOpen(false);
                 const zone = document.getElementById('Scanner_zone');
                 if (zone) {
                     zone.style.display = 'none';
                 }
-                if (!keepActionPanel) {
-                    setActionPanelState({
-                        isOpen: false,
-                        assetId: '',
-                        asset: null,
-                        displayMode: 'modal'
-                    });
-                }
+                setActionPanelState({
+                    isOpen: false,
+                    assetId: '',
+                    asset: null,
+                    displayMode: 'modal'
+                });
                 if (!keepPending && window.AssetCartStore) {
                     window.AssetCartStore.clearPendingAsset();
                 }
-                scannerCloseBehaviorRef.current.keepActionPanelOnClose = false;
+                scannerCompletionRef.current = {
+                    outcome: 'idle',
+                    assetId: '',
+                    message: ''
+                };
             }, []);
 
             const closeActionPanel = useCallback((options = {}) => {
@@ -10982,7 +10988,11 @@
                 if (!keepPending && window.AssetCartStore) {
                     window.AssetCartStore.clearPendingAsset();
                 }
-                scannerCloseBehaviorRef.current.keepActionPanelOnClose = false;
+                scannerCompletionRef.current = {
+                    outcome: 'idle',
+                    assetId: '',
+                    message: ''
+                };
             }, []);
 
             const openActionPanel = useCallback((assetId, options = {}) => {
@@ -11143,8 +11153,14 @@
                         ? (window.BatchList_findAsset(formatted) || window.BatchList_findAsset(rawValue))
                         : null) || (window.allAssets || []).find(entry => entry.id === formatted || entry.id === rawValue);
                     if (!asset) {
-                        scannerCloseBehaviorRef.current.keepActionPanelOnClose = false;
                         const message = `未找到資產：${formatted}`;
+                        if (options.source === 'camera') {
+                            scannerCompletionRef.current = {
+                                outcome: 'error',
+                                assetId: '',
+                                message: message
+                            };
+                        }
                         if (typeof window.BatchList_showToast === 'function') {
                             window.BatchList_showToast(message, 'error');
                         }
@@ -11154,9 +11170,15 @@
                         return { success: false, assetId: formatted, message: message };
                     }
                     const assetId = asset.id || asset.assetId || formatted;
-                    scannerCloseBehaviorRef.current.keepActionPanelOnClose = options.source === 'camera';
-                    const displayMode = 'modal';
-                    openActionPanel(assetId, { displayMode: displayMode, source: options.source });
+                    if (options.source === 'camera') {
+                        scannerCompletionRef.current = {
+                            outcome: 'success',
+                            assetId: assetId,
+                            message: ''
+                        };
+                    } else {
+                        openActionPanel(assetId, { displayMode: 'modal', source: options.source });
+                    }
                     if (typeof window.Scanner_playSound === 'function') {
                         window.Scanner_playSound();
                     }
@@ -11166,7 +11188,11 @@
                     const zone = document.getElementById('Scanner_zone');
                     if (!zone) return;
                     if (isScannerOpen) {
-                        scannerCloseBehaviorRef.current.keepActionPanelOnClose = false;
+                        scannerCompletionRef.current = {
+                            outcome: 'cancel',
+                            assetId: '',
+                            message: ''
+                        };
                         if (typeof window.Scanner_stop === 'function') {
                             window.Scanner_stop({ reason: 'manual-close' });
                         } else {
@@ -11178,7 +11204,11 @@
                         alert('掃描器初始化失敗，請重新整理頁面');
                         return;
                     }
-                    scannerCloseBehaviorRef.current.keepActionPanelOnClose = false;
+                    scannerCompletionRef.current = {
+                        outcome: 'idle',
+                        assetId: '',
+                        message: ''
+                    };
                     zone.style.display = 'block';
                     setIsScannerOpen(true);
                     if (typeof window.Scanner_start === 'function') {
@@ -11198,11 +11228,11 @@
                     }
                 };
                 window.AppScanner_onClosed = (payload = {}) => {
-                    const keepActionPanel = payload.reason === 'scan-complete' && scannerCloseBehaviorRef.current.keepActionPanelOnClose;
-                    syncScannerUiClosed({
-                        keepActionPanel: keepActionPanel,
-                        keepPending: keepActionPanel
-                    });
+                    const completion = { ...scannerCompletionRef.current };
+                    syncScannerUiClosed();
+                    if (payload.reason === 'scan-complete' && completion.outcome === 'success' && completion.assetId) {
+                        openActionPanel(completion.assetId, { displayMode: 'modal', source: 'camera' });
+                    }
                 };
                 return () => {
                     delete window.AppScanner_onError;
