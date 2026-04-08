@@ -131,6 +131,31 @@ const ID_REMARKS_COLUMN_INDEX = 9;             // I欄: 備註
 const ID_VERIFICATION_TIME_COLUMN_INDEX = 10;  // J欄: 盤點時間
 const ID_VERIFIED_BY_COLUMN_INDEX = 11;        // K欄: 盤點人
 const ID_ASSIGNED_USER_COLUMN_INDEX = 12;      // ✨ L欄: 指派人員 (New!)
+const ID_IS_IT_ASSET_COLUMN_INDEX = 13;        // ✨ M欄: 是否為資訊資產
+const ID_ISMS_ASSET_ID_COLUMN_INDEX = 14;      // ✨ N欄: 資訊資產編號
+
+// --- ✨ **新增：ISMS 資訊資產欄位索引** ---
+const ISMS_ASSET_COLUMN_INDICES = {
+  ISMS_ASSET_ID: 1,      // A欄: 資訊資產編號
+  CATEGORY: 2,           // B欄: 資訊資產類別
+  NAME: 3,               // C欄: 資訊資產名稱
+  DESCRIPTION: 4,        // D欄: 資訊資產說明
+  QUANTITY: 5,           // E欄: 數量
+  LOCATION: 6,           // F欄: 地點
+  RESPONSIBLE_UNIT: 7,   // G欄: 權責單位
+  MAIN_CATEGORY: 8,      // H欄: 主類別
+  SUB_CATEGORY: 9,       // I欄: 子類別
+  STATUS: 13             // M欄: 狀態
+};
+
+// ISMS 資產對照表欄位索引
+const ISMS_MAPPING_COLUMN_INDICES = {
+  ASSET_ID: 1,           // A欄: 資產編號
+  ISMS_ASSET_ID: 2,      // B欄: 資訊資產編號
+  CREATED_TIME: 3,       // C欄: 建立時間
+  CREATED_BY: 4,         // D欄: 建立人
+  REMARKS: 5             // E欄: 備註
+};
 
 // 在「軟體版本清單」工作表中的欄位
 const SV_SEVENZIP_COLUMN_INDEX = 1; // 7zip 版本在 A 欄
@@ -749,7 +774,8 @@ function getUserStateData(forceUserScope) {
     status: asset.assetStatus,
     category: asset.assetCategory,
     userName: asset.userName || '無', // 使用者名稱，物品總表顯示「無」
-    sourceSheet: asset.sourceSheet
+    sourceSheet: asset.sourceSheet,
+    isItAsset: asset.isItAsset || ''  // ✨ ISMS：是否為資訊資產（X欄）
   }));
 
   return {
@@ -6144,6 +6170,21 @@ function getInventoryData(forceUserScope) {
       });
     }
 
+    // ✨ 取得 ISMS 資訊資產清單（供盤點時選擇）
+    let ismsAssets = [];
+    let ismsEnabled = false;
+    if (ISMS_SPREADSHEET_ID && ISMS_SPREADSHEET_ID !== 'YOUR_ISMS_SPREADSHEET_ID_HERE') {
+      ismsEnabled = true;
+      try {
+        const ismsResult = getIsmsAssetList();
+        if (ismsResult.success) {
+          ismsAssets = ismsResult.assets;
+        }
+      } catch (e) {
+        Logger.log('載入 ISMS 資產清單失敗（非致命）: ' + e.message);
+      }
+    }
+
     // 注意: 不返回完整的 assets 陣列,因為其中包含 Date 物件無法序列化
     // 前端只需要 locations, keepers, users 和 activeSessions
     return {
@@ -6159,7 +6200,9 @@ function getInventoryData(forceUserScope) {
       currentUserEmail: currentUserEmail,
       isAdmin: isAdmin,
       myPendingInventoryCount: myPendingInventoryCount, // ✨ 使用者待盤點資產數量
-      totalPendingInventoryCount: totalPendingInventoryCount // ✨ 管理員全域待盤點資產數量
+      totalPendingInventoryCount: totalPendingInventoryCount, // ✨ 管理員全域待盤點資產數量
+      ismsAssets: ismsAssets, // ✨ ISMS 資訊資產清單
+      ismsEnabled: ismsEnabled // ✨ ISMS 功能是否啟用
     };
   } catch (e) {
     Logger.log(`getInventoryData 失敗: ${e.message}`);
@@ -6294,7 +6337,23 @@ function getPendingInventoryAssignments(forceUserScope) {
       };
     }
 
-    const detailData = inventoryDetailSheet.getRange(2, 1, inventoryDetailSheet.getLastRow() - 1, ID_ASSIGNED_USER_COLUMN_INDEX).getValues();
+    // ✨ 從主表建立 IS_IT_ASSET 對照（單一事實來源）
+    const masterIsItAssetMap = {};
+    const propertyMasterSheet = ss.getSheetByName(PROPERTY_MASTER_SHEET_NAME);
+    const itemMasterSheet = ss.getSheetByName(ITEM_MASTER_SHEET_NAME);
+    [propertyMasterSheet, itemMasterSheet].forEach(sheet => {
+      if (!sheet || sheet.getLastRow() <= 1) return;
+      const masterData = sheet.getRange(2, 1, sheet.getLastRow() - 1, PROPERTY_COLUMN_INDICES.IS_IT_ASSET).getValues();
+      masterData.forEach(row => {
+        const aid = row[PROPERTY_COLUMN_INDICES.ASSET_ID - 1];
+        if (aid) masterIsItAssetMap[String(aid).trim()] = row[PROPERTY_COLUMN_INDICES.IS_IT_ASSET - 1] || '';
+      });
+    });
+
+    // 讀取包含 ISMS 欄位的資料（最多到第 14 欄）
+    const detailLastCol = Math.max(inventoryDetailSheet.getLastColumn(), ID_ASSIGNED_USER_COLUMN_INDEX);
+    const detailReadCols = Math.min(detailLastCol, ID_ISMS_ASSET_ID_COLUMN_INDEX);
+    const detailData = inventoryDetailSheet.getRange(2, 1, inventoryDetailSheet.getLastRow() - 1, detailReadCols).getValues();
     const pendingItems = [];
 
     detailData.forEach(row => {
@@ -6353,7 +6412,12 @@ function getPendingInventoryAssignments(forceUserScope) {
         assignedUser: assignedUserValue,
         assignedUserLabel: assignedUserLabel,
         assignedGroup: assignedGroup,
-        assignedUserType: assignedUserType
+        assignedUserType: assignedUserType,
+        // ✨ isItAsset 以主表（財產/物品總表 X欄）為單一事實來源，主表無資料時退回盤點明細快照
+        isItAsset: masterIsItAssetMap[String(assetId).trim()] !== undefined && masterIsItAssetMap[String(assetId).trim()] !== ''
+          ? masterIsItAssetMap[String(assetId).trim()]
+          : (detailReadCols >= ID_IS_IT_ASSET_COLUMN_INDEX ? (row[ID_IS_IT_ASSET_COLUMN_INDEX - 1] || '') : ''),
+        ismsAssetId: detailReadCols >= ID_ISMS_ASSET_ID_COLUMN_INDEX ? (row[ID_ISMS_ASSET_ID_COLUMN_INDEX - 1] || '') : '' // ✨ ISMS
       });
     });
 
@@ -6643,6 +6707,28 @@ function startInventorySession(options) {
 
     // 取得要盤點的資產
     const allAssets = getAllAssets();
+
+    // ✨ 預載 ISMS 對照資料（如果 ISMS 功能已啟用）
+    let ismsMappingMap = {};
+    if (ISMS_SPREADSHEET_ID && ISMS_SPREADSHEET_ID !== 'YOUR_ISMS_SPREADSHEET_ID_HERE') {
+      try {
+        const ismsSs = SpreadsheetApp.openById(ISMS_SPREADSHEET_ID);
+        const mappingSheet = ismsSs.getSheetByName(ISMS_MAPPING_SHEET_NAME);
+        if (mappingSheet && mappingSheet.getLastRow() > 1) {
+          const mappingData = mappingSheet.getRange(2, 1, mappingSheet.getLastRow() - 1, ISMS_MAPPING_COLUMN_INDICES.ISMS_ASSET_ID).getValues();
+          for (let i = 0; i < mappingData.length; i++) {
+            const aid = mappingData[i][ISMS_MAPPING_COLUMN_INDICES.ASSET_ID - 1];
+            const ismsId = mappingData[i][ISMS_MAPPING_COLUMN_INDICES.ISMS_ASSET_ID - 1];
+            if (aid && ismsId) {
+              ismsMappingMap[aid.toString()] = ismsId.toString();
+            }
+          }
+        }
+      } catch (e) {
+        Logger.log('預載 ISMS 對照失敗（非致命）: ' + e.message);
+      }
+    }
+
     let assetsToInventory = allAssets.filter(asset => {
       if (asset.assetStatus !== '在庫' && asset.assetStatus !== '出借中' && asset.assetStatus !== '轉移中' && asset.assetStatus !== '報廢中') return false;
 
@@ -6708,6 +6794,10 @@ function startInventorySession(options) {
 
       const userName = asset.sourceSheet === PROPERTY_MASTER_SHEET_NAME ? (asset.userName || '') : '';
 
+      // 取得資產的現有資訊資產標記與 ISMS 對照
+      const isItAssetValue = asset.isItAsset || '';
+      const ismsAssetIdValue = ismsMappingMap[asset.assetId] || '';
+
       return [
         inventoryId,
         asset.assetId,
@@ -6720,13 +6810,15 @@ function startInventorySession(options) {
         '', // 備註
         '', // 盤點時間
         '', // 盤點人
-        assignedUser // ✨ 指派人員 (Col 12)
+        assignedUser, // ✨ 指派人員 (Col 12)
+        isItAssetValue, // ✨ 是否為資訊資產 (Col 13)
+        ismsAssetIdValue // ✨ 資訊資產編號 (Col 14)
       ];
     });
 
     if (detailRows.length > 0) {
-      // 寫入資料 (注意：現在是 12 欄)
-      inventoryDetailSheet.getRange(inventoryDetailSheet.getLastRow() + 1, 1, detailRows.length, 12).setValues(detailRows);
+      // 寫入資料 (注意：現在是 14 欄，含 ISMS 分類欄位)
+      inventoryDetailSheet.getRange(inventoryDetailSheet.getLastRow() + 1, 1, detailRows.length, 14).setValues(detailRows);
     }
 
     const assignmentMessage = assignmentMode === 'custom'
@@ -6768,8 +6860,10 @@ function getInventoryDetails(inventoryId) {
       return [];
     }
 
-    // 讀取包含第 12 欄的資料
-    const data = inventoryDetailSheet.getRange(2, 1, inventoryDetailSheet.getLastRow() - 1, 12).getValues();
+    // 讀取包含第 14 欄的資料（含 ISMS 分類欄位）
+    const lastCol = Math.max(inventoryDetailSheet.getLastColumn(), ID_ISMS_ASSET_ID_COLUMN_INDEX);
+    const readCols = Math.min(lastCol, ID_ISMS_ASSET_ID_COLUMN_INDEX);
+    const data = inventoryDetailSheet.getRange(2, 1, inventoryDetailSheet.getLastRow() - 1, readCols).getValues();
     const details = [];
 
     for (let i = 0; i < data.length; i++) {
@@ -6792,7 +6886,9 @@ function getInventoryDetails(inventoryId) {
           remarks: row[ID_REMARKS_COLUMN_INDEX - 1],
           verificationTime: verificationTimeStr,
           verifiedBy: row[ID_VERIFIED_BY_COLUMN_INDEX - 1],
-          assignedUser: row[ID_ASSIGNED_USER_COLUMN_INDEX - 1] // ✨ 新增：回傳指派人員
+          assignedUser: row[ID_ASSIGNED_USER_COLUMN_INDEX - 1], // ✨ 指派人員
+          isItAsset: readCols >= ID_IS_IT_ASSET_COLUMN_INDEX ? (row[ID_IS_IT_ASSET_COLUMN_INDEX - 1] || '') : '', // ✨ 是否為資訊資產
+          ismsAssetId: readCols >= ID_ISMS_ASSET_ID_COLUMN_INDEX ? (row[ID_ISMS_ASSET_ID_COLUMN_INDEX - 1] || '') : '' // ✨ 資訊資產編號
         });
       }
     }
@@ -6888,7 +6984,9 @@ function getInventoryDashboardData(inventoryId) {
       remarks: item?.remarks || '',
       verificationTime: item?.verificationTime || '',
       verifiedBy: item?.verifiedBy || '',
-      assignedUser: item?.assignedUser || ''
+      assignedUser: item?.assignedUser || '',
+      isItAsset: item?.isItAsset || '',     // ✨ ISMS
+      ismsAssetId: item?.ismsAssetId || ''  // ✨ ISMS
     }));
     const safeStats = (Array.isArray(stats) ? stats : []).map(item => ({
       email: item?.email || '',
@@ -7793,4 +7891,301 @@ function deleteInventorySession(sessionId) {
     Logger.log(`deleteInventorySession 失敗: ${e.message}`);
     throw e;
   }
+}
+
+// =================================================================
+// --- ✨ ISMS 資訊資產分類整合（盤點流程用）---
+// =================================================================
+
+/**
+ * 取得 ISMS 資訊資產清單（供盤點時下拉選擇）
+ * 僅回傳必要欄位以減少傳輸量
+ * @returns {Object} { success, assets: [{ ismsAssetId, category, name, mainCategory, subCategory }] }
+ */
+function getIsmsAssetList() {
+  try {
+    if (!ISMS_SPREADSHEET_ID || ISMS_SPREADSHEET_ID === 'YOUR_ISMS_SPREADSHEET_ID_HERE') {
+      return { success: false, error: 'ISMS 試算表 ID 尚未設定，請在 env.js 中設定 ISMS_SPREADSHEET_ID' };
+    }
+
+    const ss = SpreadsheetApp.openById(ISMS_SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(ISMS_ASSET_SHEET_NAME);
+
+    if (!sheet) {
+      return { success: false, error: '找不到資訊資產清單工作表' };
+    }
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow <= 1) {
+      return { success: true, assets: [] };
+    }
+
+    const data = sheet.getRange(2, 1, lastRow - 1, ISMS_ASSET_COLUMN_INDICES.STATUS).getValues();
+    const assets = [];
+    const indices = ISMS_ASSET_COLUMN_INDICES;
+
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const ismsAssetId = row[indices.ISMS_ASSET_ID - 1];
+      if (!ismsAssetId) continue;
+
+      assets.push({
+        ismsAssetId: ismsAssetId.toString(),
+        category: row[indices.CATEGORY - 1] ? row[indices.CATEGORY - 1].toString() : '',
+        name: row[indices.NAME - 1] ? row[indices.NAME - 1].toString() : '',
+        mainCategory: row[indices.MAIN_CATEGORY - 1] ? row[indices.MAIN_CATEGORY - 1].toString() : '',
+        subCategory: row[indices.SUB_CATEGORY - 1] ? row[indices.SUB_CATEGORY - 1].toString() : '',
+        responsibleUnit: row[indices.RESPONSIBLE_UNIT - 1] ? row[indices.RESPONSIBLE_UNIT - 1].toString() : ''
+      });
+    }
+
+    return { success: true, assets: assets };
+  } catch (e) {
+    Logger.log('getIsmsAssetList 失敗: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * 取得指定資產的 ISMS 對照資訊
+ * @param {string[]} assetIds - 資產編號陣列
+ * @returns {Object} { success, mappings: { [assetId]: { ismsAssetId, isItAsset } } }
+ */
+function getIsmsMappingForAssets(assetIds) {
+  try {
+    if (!assetIds || assetIds.length === 0) {
+      return { success: true, mappings: {} };
+    }
+
+    const result = {};
+
+    // 從主試算表讀取 IS_IT_ASSET 欄位
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const assetIdSet = {};
+    for (let i = 0; i < assetIds.length; i++) {
+      assetIdSet[assetIds[i]] = true;
+      result[assetIds[i]] = { isItAsset: '', ismsAssetId: '' };
+    }
+
+    // 讀取財產總表的 IS_IT_ASSET
+    const propSheet = ss.getSheetByName(PROPERTY_MASTER_SHEET_NAME);
+    if (propSheet && propSheet.getLastRow() > 1) {
+      const propData = propSheet.getRange(2, 1, propSheet.getLastRow() - 1, PROPERTY_COLUMN_INDICES.DEFAULT_GROUP).getValues();
+      for (let i = 0; i < propData.length; i++) {
+        const aid = propData[i][PROPERTY_COLUMN_INDICES.ASSET_ID - 1];
+        if (aid && assetIdSet[aid.toString()]) {
+          result[aid.toString()].isItAsset = propData[i][PROPERTY_COLUMN_INDICES.IS_IT_ASSET - 1] ? propData[i][PROPERTY_COLUMN_INDICES.IS_IT_ASSET - 1].toString() : '';
+        }
+      }
+    }
+
+    // 讀取物品總表的 IS_IT_ASSET
+    const itemSheet = ss.getSheetByName(ITEM_MASTER_SHEET_NAME);
+    if (itemSheet && itemSheet.getLastRow() > 1) {
+      const itemData = itemSheet.getRange(2, 1, itemSheet.getLastRow() - 1, ITEM_COLUMN_INDICES.DEFAULT_GROUP).getValues();
+      for (let i = 0; i < itemData.length; i++) {
+        const aid = itemData[i][ITEM_COLUMN_INDICES.ASSET_ID - 1];
+        if (aid && assetIdSet[aid.toString()]) {
+          result[aid.toString()].isItAsset = itemData[i][ITEM_COLUMN_INDICES.IS_IT_ASSET - 1] ? itemData[i][ITEM_COLUMN_INDICES.IS_IT_ASSET - 1].toString() : '';
+        }
+      }
+    }
+
+    // 讀取 ISMS 對照表
+    if (ISMS_SPREADSHEET_ID && ISMS_SPREADSHEET_ID !== 'YOUR_ISMS_SPREADSHEET_ID_HERE') {
+      try {
+        const ismsSs = SpreadsheetApp.openById(ISMS_SPREADSHEET_ID);
+        const mappingSheet = ismsSs.getSheetByName(ISMS_MAPPING_SHEET_NAME);
+        if (mappingSheet && mappingSheet.getLastRow() > 1) {
+          const mappingData = mappingSheet.getRange(2, 1, mappingSheet.getLastRow() - 1, ISMS_MAPPING_COLUMN_INDICES.REMARKS).getValues();
+          for (let i = 0; i < mappingData.length; i++) {
+            const aid = mappingData[i][ISMS_MAPPING_COLUMN_INDICES.ASSET_ID - 1];
+            if (aid && assetIdSet[aid.toString()]) {
+              result[aid.toString()].ismsAssetId = mappingData[i][ISMS_MAPPING_COLUMN_INDICES.ISMS_ASSET_ID - 1] ? mappingData[i][ISMS_MAPPING_COLUMN_INDICES.ISMS_ASSET_ID - 1].toString() : '';
+            }
+          }
+        }
+      } catch (e) {
+        Logger.log('讀取 ISMS 對照表失敗（非致命）: ' + e.message);
+      }
+    }
+
+    return { success: true, mappings: result };
+  } catch (e) {
+    Logger.log('getIsmsMappingForAssets 失敗: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * 儲存資產的 ISMS 分類（盤點時呼叫）
+ * 同時更新：1) 主試算表 IS_IT_ASSET 欄位 2) ISMS 對照表 3) 盤點明細 ISMS 欄位
+ * @param {string} assetId - 資產編號
+ * @param {boolean} isItAsset - 是否為資訊資產
+ * @param {string} ismsAssetId - 資訊資產編號（空字串表示不對照）
+ * @returns {Object} 操作結果
+ */
+function saveIsmsClassification(assetId, isItAsset, ismsAssetId) {
+  try {
+    const currentUserEmail = Session.getActiveUser().getEmail();
+    const timestamp = new Date().toISOString();
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+    // 1. 更新主試算表的 IS_IT_ASSET 欄位
+    const location = findAssetLocation(assetId);
+    if (location) {
+      const indices = location.sheetName === PROPERTY_MASTER_SHEET_NAME
+        ? PROPERTY_COLUMN_INDICES
+        : ITEM_COLUMN_INDICES;
+      location.sheet.getRange(location.rowIndex, indices.IS_IT_ASSET).setValue(isItAsset ? '是' : '');
+    }
+
+    // 2. 更新 ISMS 對照表
+    if (ismsAssetId && ISMS_SPREADSHEET_ID && ISMS_SPREADSHEET_ID !== 'YOUR_ISMS_SPREADSHEET_ID_HERE') {
+      try {
+        const ismsSs = SpreadsheetApp.openById(ISMS_SPREADSHEET_ID);
+        let mappingSheet = ismsSs.getSheetByName(ISMS_MAPPING_SHEET_NAME);
+
+        if (!mappingSheet) {
+          mappingSheet = ismsSs.insertSheet(ISMS_MAPPING_SHEET_NAME);
+          mappingSheet.appendRow(['資產編號', '資訊資產編號', '建立時間', '建立人', '備註']);
+        }
+
+        // 查找是否已有對照記錄
+        const lastRow = mappingSheet.getLastRow();
+        let existingRow = -1;
+        if (lastRow > 1) {
+          const existingData = mappingSheet.getRange(2, 1, lastRow - 1, 1).getValues();
+          for (let i = 0; i < existingData.length; i++) {
+            if (existingData[i][0] && existingData[i][0].toString() === assetId) {
+              existingRow = i + 2;
+              break;
+            }
+          }
+        }
+
+        if (existingRow > 0) {
+          // 更新現有記錄
+          mappingSheet.getRange(existingRow, ISMS_MAPPING_COLUMN_INDICES.ISMS_ASSET_ID).setValue(ismsAssetId);
+          mappingSheet.getRange(existingRow, ISMS_MAPPING_COLUMN_INDICES.CREATED_TIME).setValue(timestamp);
+          mappingSheet.getRange(existingRow, ISMS_MAPPING_COLUMN_INDICES.CREATED_BY).setValue(currentUserEmail);
+        } else {
+          // 新增記錄
+          mappingSheet.appendRow([assetId, ismsAssetId, timestamp, currentUserEmail, '盤點時建立']);
+        }
+      } catch (e) {
+        Logger.log('更新 ISMS 對照表失敗（非致命）: ' + e.message);
+      }
+    } else if (!isItAsset && ISMS_SPREADSHEET_ID && ISMS_SPREADSHEET_ID !== 'YOUR_ISMS_SPREADSHEET_ID_HERE') {
+      // 如果取消資訊資產標記，刪除對照記錄
+      try {
+        const ismsSs = SpreadsheetApp.openById(ISMS_SPREADSHEET_ID);
+        const mappingSheet = ismsSs.getSheetByName(ISMS_MAPPING_SHEET_NAME);
+        if (mappingSheet && mappingSheet.getLastRow() > 1) {
+          const existingData = mappingSheet.getRange(2, 1, mappingSheet.getLastRow() - 1, 1).getValues();
+          for (let i = existingData.length - 1; i >= 0; i--) {
+            if (existingData[i][0] && existingData[i][0].toString() === assetId) {
+              mappingSheet.deleteRow(i + 2);
+              break;
+            }
+          }
+        }
+      } catch (e) {
+        Logger.log('刪除 ISMS 對照記錄失敗（非致命）: ' + e.message);
+      }
+    }
+
+    // 3. 更新所有進行中的盤點明細中的 ISMS 欄位
+    try {
+      const inventoryDetailSheet = ss.getSheetByName(INVENTORY_DETAIL_SHEET_NAME);
+      if (inventoryDetailSheet && inventoryDetailSheet.getLastRow() > 1) {
+        const inventoryLogSheet = ss.getSheetByName(INVENTORY_LOG_SHEET_NAME);
+        // 取得進行中的會話ID
+        const activeSessions = {};
+        if (inventoryLogSheet && inventoryLogSheet.getLastRow() > 1) {
+          const logData = inventoryLogSheet.getRange(2, 1, inventoryLogSheet.getLastRow() - 1, IL_STATUS_COLUMN_INDEX).getValues();
+          for (let i = 0; i < logData.length; i++) {
+            if (logData[i][IL_STATUS_COLUMN_INDEX - 1] === '進行中') {
+              activeSessions[logData[i][IL_INVENTORY_ID_COLUMN_INDEX - 1]] = true;
+            }
+          }
+        }
+
+        const lastCol = inventoryDetailSheet.getLastColumn();
+        const detailCols = Math.max(lastCol, ID_ISMS_ASSET_ID_COLUMN_INDEX);
+        const detailData = inventoryDetailSheet.getRange(2, 1, inventoryDetailSheet.getLastRow() - 1, detailCols).getValues();
+        for (let i = 0; i < detailData.length; i++) {
+          const rowInvId = detailData[i][ID_INVENTORY_ID_COLUMN_INDEX - 1];
+          const rowAssetId = detailData[i][ID_ASSET_ID_COLUMN_INDEX - 1];
+          if (rowAssetId && rowAssetId.toString() === assetId && activeSessions[rowInvId]) {
+            const rowIndex = i + 2;
+            inventoryDetailSheet.getRange(rowIndex, ID_IS_IT_ASSET_COLUMN_INDEX).setValue(isItAsset ? '是' : '');
+            inventoryDetailSheet.getRange(rowIndex, ID_ISMS_ASSET_ID_COLUMN_INDEX).setValue(ismsAssetId || '');
+          }
+        }
+      }
+    } catch (e) {
+      Logger.log('更新盤點明細 ISMS 欄位失敗（非致命）: ' + e.message);
+    }
+
+    return { success: true, message: '已儲存資訊資產分類' };
+  } catch (e) {
+    Logger.log('saveIsmsClassification 失敗: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * 盤點時同時提交盤點結果與 ISMS 分類（單筆）
+ * @param {string} assetId - 資產編號
+ * @param {string} result - 盤點結果
+ * @param {string} remarks - 備註
+ * @param {Object} ismsData - ISMS 分類資料 { isItAsset: boolean, ismsAssetId: string }
+ * @returns {Object} 操作結果
+ */
+function markAssetInventoryWithIsms(assetId, result, remarks, ismsData) {
+  // 先執行原有的盤點標記
+  const inventoryResult = markAssetInventoryInActiveSessions(assetId, result, remarks);
+
+  // 如果有 ISMS 資料，同步處理 ISMS 分類
+  if (ismsData && (ismsData.isItAsset !== undefined)) {
+    const ismsResult = saveIsmsClassification(assetId, ismsData.isItAsset, ismsData.ismsAssetId || '');
+    if (!ismsResult.success) {
+      Logger.log('ISMS 分類儲存失敗（盤點結果已成功）: ' + ismsResult.error);
+    }
+  }
+
+  return inventoryResult;
+}
+
+/**
+ * 盤點時同時提交盤點結果與 ISMS 分類（批次）
+ * @param {Array} assetResults - [{ assetId, result, remarks, ismsData: { isItAsset, ismsAssetId } }]
+ * @returns {Object} 操作結果
+ */
+function markBatchInventoryWithIsms(assetResults) {
+  // 分離盤點資料與 ISMS 資料
+  const inventoryResults = assetResults.map(function(item) {
+    return {
+      assetId: item.assetId,
+      result: item.result,
+      remarks: item.remarks
+    };
+  });
+
+  // 先執行批次盤點標記
+  const inventoryResult = markBatchInventoryInActiveSessions(inventoryResults);
+
+  // 處理 ISMS 分類
+  for (let i = 0; i < assetResults.length; i++) {
+    var item = assetResults[i];
+    if (item.ismsData && (item.ismsData.isItAsset !== undefined)) {
+      var ismsResult = saveIsmsClassification(item.assetId, item.ismsData.isItAsset, item.ismsData.ismsAssetId || '');
+      if (!ismsResult.success) {
+        Logger.log('批次 ISMS 分類儲存失敗 (' + item.assetId + '): ' + ismsResult.error);
+      }
+    }
+  }
+
+  return inventoryResult;
 }
