@@ -1809,6 +1809,7 @@
             LEND: '出借',
             SCRAP: '報廢',
             INVENTORY: '盤點',
+            INVENTORY_RESET: '取消確認',
             NONE: '未指定'
         };
 
@@ -10327,6 +10328,12 @@
                 return parts.join('｜');
             };
 
+            const buildResetQueueSummary = () => {
+                return isBatch
+                    ? `取消確認｜重設為未盤點｜共 ${assetIds?.length || 0} 筆`
+                    : '取消確認｜重設為未盤點';
+            };
+
             const handleSubmit = () => {
                 if (isQueueMode) {
                     const queueAssetIds = isBatch ? (assetIds || []) : [asset?.assetId];
@@ -10433,6 +10440,25 @@
             };
 
             const handleReset = () => {
+                if (isQueueMode) {
+                    const queueAssetIds = isBatch ? (assetIds || []) : [asset?.assetId];
+                    const normalizedAssetIds = queueAssetIds
+                        .map(id => String(id || '').trim())
+                        .filter(Boolean);
+                    if (normalizedAssetIds.length === 0) {
+                        alert('沒有可加入清單的資產');
+                        return;
+                    }
+                    if (typeof onQueue === 'function') {
+                        onQueue({
+                            actionType: 'INVENTORY_RESET',
+                            assetIds: normalizedAssetIds
+                        }, buildResetQueueSummary());
+                    }
+                    onClose();
+                    return;
+                }
+
                 const totalCount = isBatch ? (assetIds?.length || 0) : 1;
                 const confirmMessage = isBatch
                     ? `確定要取消所選的 ${totalCount} 筆盤點結果，並重設為「未盤點」嗎？\n\n此操作將清除備註與盤點時間/盤點人。`
@@ -10703,19 +10729,17 @@
                             >
                                 取消
                             </button>
-                            {!isQueueMode && (
-                                <button
-                                    onClick={handleReset}
-                                    disabled={isSubmitting || isResetting}
-                                    className="px-3 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 text-sm"
-                                >
-                                    {isResetting ? (
-                                        <><i className="fas fa-spinner fa-spin"></i><span>取消中...</span></>
-                                    ) : (
-                                        <><i className="fas fa-rotate-left"></i><span>取消確認</span></>
-                                    )}
-                                </button>
-                            )}
+                            <button
+                                onClick={handleReset}
+                                disabled={isSubmitting || isResetting}
+                                className="px-3 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 text-sm"
+                            >
+                                {isResetting ? (
+                                    <><i className="fas fa-spinner fa-spin"></i><span>取消中...</span></>
+                                ) : (
+                                    <><i className={`fas ${isQueueMode ? 'fa-clock-rotate-left' : 'fa-rotate-left'}`}></i><span>{isQueueMode ? '加入重設' : '取消確認'}</span></>
+                                )}
+                            </button>
                             <button
                                 onClick={handleSubmit}
                                 disabled={isSubmitting || isResetting}
@@ -13199,6 +13223,7 @@
 
             const handleInventoryQueue = useCallback((payload, summary) => {
                 if (!window.AssetCartStore) return;
+                const actionType = payload?.actionType === 'INVENTORY_RESET' ? 'INVENTORY_RESET' : 'INVENTORY';
                 const queueAssetIds = Array.isArray(payload?.assetIds)
                     ? payload.assetIds
                     : [inventoryModalAsset?.assetId];
@@ -13213,7 +13238,7 @@
                     ? JSON.parse(JSON.stringify(payload.actionPayload))
                     : {};
                 const statusValue = String(payload?.status || '').trim();
-                if (!statusValue) {
+                if (actionType === 'INVENTORY' && !statusValue) {
                     if (typeof window.BatchList_showToast === 'function') {
                         window.BatchList_showToast('請選擇盤點結果', 'warning');
                     } else {
@@ -13228,10 +13253,10 @@
                     const added = window.AssetCartStore.addOrUpdateItem({
                         assetId: assetId,
                         assetName: assetDetail?.assetName || '',
-                        actionType: 'INVENTORY',
-                        status: statusValue,
-                        actionPayload: normalizedPayload,
-                        actionSummary: summary || `盤點｜${statusValue}`
+                        actionType: actionType,
+                        status: actionType === 'INVENTORY' ? statusValue : null,
+                        actionPayload: actionType === 'INVENTORY' ? normalizedPayload : null,
+                        actionSummary: summary || (actionType === 'INVENTORY' ? `盤點｜${statusValue}` : '取消確認｜重設為未盤點')
                     });
                     if (added) {
                         addedAssetNames.push(assetDetail?.assetName || assetId);
@@ -13240,7 +13265,7 @@
 
                 if (addedAssetNames.length > 0 && typeof window.BatchList_showToast === 'function') {
                     const label = normalizedAssetIds.length > 1
-                        ? `已加入進階清單：${normalizedAssetIds.length} 筆盤點項目`
+                        ? `已加入進階清單：${normalizedAssetIds.length} 筆${actionType === 'INVENTORY_RESET' ? '重設項目' : '盤點項目'}`
                         : `已加入進階清單：${addedAssetNames[0]}`;
                     window.BatchList_showToast(label, 'success');
                 }
@@ -13438,10 +13463,19 @@
 
                 try {
                     const inventoryItems = items.filter(item => item.actionType === 'INVENTORY');
+                    const inventoryResetItems = items.filter(item => item.actionType === 'INVENTORY_RESET');
                     const readyInventoryItems = inventoryItems.filter(item => item.status);
                     const missingInventoryItems = inventoryItems.filter(item => !item.status);
                     if (missingInventoryItems.length > 0) {
                         invalidIds.push(...missingInventoryItems.map(item => item.assetId));
+                    }
+                    if (inventoryResetItems.length > 0) {
+                        await runScript(
+                            'resetBatchInventoryInActiveSessions',
+                            inventoryResetItems.map(item => item.assetId)
+                        );
+                        successIds.push(...inventoryResetItems.map(item => item.assetId));
+                        handleInventorySuccess();
                     }
                     if (readyInventoryItems.length > 0) {
                         const inventoryPayload = readyInventoryItems.map(item => ({
