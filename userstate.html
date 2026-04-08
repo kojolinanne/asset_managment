@@ -10244,12 +10244,13 @@
         };
 
         // ========== 盤點確認 Modal（單筆/批次共用，含 ISMS 資訊資產分類）==========
-            const InventoryConfirmModal = ({ asset, assetIds, isBatch, sessionCount, onClose, onSuccess, ismsAssets: ismsAssetsProp, ismsEnabled: ismsEnabledProp }) => {
+            const InventoryConfirmModal = ({ asset, assetIds, isBatch, sessionCount, submitMode = 'submit', onQueue, onClose, onSuccess, ismsAssets: ismsAssetsProp, ismsEnabled: ismsEnabledProp }) => {
             const [result, setResult] = useState('正常');
             const [remarks, setRemarks] = useState('');
             const [isSubmitting, setIsSubmitting] = useState(false);
             const [isResetting, setIsResetting] = useState(false);
             const normalizedSessionCount = typeof sessionCount === 'number' ? sessionCount : 0;
+            const isQueueMode = submitMode === 'queue';
 
             // ✨ ISMS 資訊資產分類狀態（直接從 prop 計算初始值，避免 useEffect 延遲渲染導致 toggle 閃爍或停在 OFF）
             const ismsAssetsList = ismsAssetsProp || [];
@@ -10292,7 +10293,61 @@
                 };
             };
 
+            const buildQueuePayload = () => {
+                const payload = {
+                    remarks: remarks.trim()
+                };
+                const ismsData = buildIsmsData();
+                if (ismsData) {
+                    payload.ismsData = ismsData;
+                }
+                return payload;
+            };
+
+            const buildQueueSummary = () => {
+                const parts = [`盤點｜${result}`];
+                const trimmedRemarks = remarks.trim();
+                if (trimmedRemarks) {
+                    parts.push(`備註:${trimmedRemarks}`);
+                }
+
+                const ismsData = buildIsmsData();
+                if (ismsData) {
+                    const ismsLabel = ismsData.isItAsset ? '資訊資產' : '非資訊資產';
+                    const ismsParts = [ismsLabel];
+                    if (ismsData.isItAsset && ismsData.isIsoScope) {
+                        ismsParts.push('驗證範圍');
+                    }
+                    if (ismsData.isItAsset && ismsData.ismsAssetId) {
+                        ismsParts.push(ismsData.ismsAssetId);
+                    }
+                    parts.push(`ISMS:${ismsParts.join('/')}`);
+                }
+
+                return parts.join('｜');
+            };
+
             const handleSubmit = () => {
+                if (isQueueMode) {
+                    const queueAssetIds = isBatch ? (assetIds || []) : [asset?.assetId];
+                    const normalizedAssetIds = queueAssetIds
+                        .map(id => String(id || '').trim())
+                        .filter(Boolean);
+                    if (normalizedAssetIds.length === 0) {
+                        alert('沒有可加入清單的資產');
+                        return;
+                    }
+                    if (typeof onQueue === 'function') {
+                        onQueue({
+                            assetIds: normalizedAssetIds,
+                            status: result,
+                            actionPayload: buildQueuePayload()
+                        }, buildQueueSummary());
+                    }
+                    onClose();
+                    return;
+                }
+
                 setIsSubmitting(true);
                 showFlyProgressBar('正在提交盤點結果...');
 
@@ -10464,7 +10519,9 @@
                             )}
 
                             <div className="rounded-lg border border-teal-100 bg-teal-50 px-3 py-2 text-xs text-teal-700">
-                                送出後會同步更新所有進行中的盤點會話{normalizedSessionCount > 0 ? `（共 ${normalizedSessionCount} 個）` : ''}。
+                                {isQueueMode
+                                    ? `確認後會先加入批次清單，待送出時同步更新所有進行中的盤點會話${normalizedSessionCount > 0 ? `（共 ${normalizedSessionCount} 個）` : ''}。`
+                                    : `送出後會同步更新所有進行中的盤點會話${normalizedSessionCount > 0 ? `（共 ${normalizedSessionCount} 個）` : ''}。`}
                             </div>
 
                             {/* 盤點結果選項 — 橫向 chip 按鈕 */}
@@ -10646,17 +10703,19 @@
                             >
                                 取消
                             </button>
-                            <button
-                                onClick={handleReset}
-                                disabled={isSubmitting || isResetting}
-                                className="px-3 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 text-sm"
-                            >
-                                {isResetting ? (
-                                    <><i className="fas fa-spinner fa-spin"></i><span>取消中...</span></>
-                                ) : (
-                                    <><i className="fas fa-rotate-left"></i><span>取消確認</span></>
-                                )}
-                            </button>
+                            {!isQueueMode && (
+                                <button
+                                    onClick={handleReset}
+                                    disabled={isSubmitting || isResetting}
+                                    className="px-3 py-2 border border-rose-200 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 text-sm"
+                                >
+                                    {isResetting ? (
+                                        <><i className="fas fa-spinner fa-spin"></i><span>取消中...</span></>
+                                    ) : (
+                                        <><i className="fas fa-rotate-left"></i><span>取消確認</span></>
+                                    )}
+                                </button>
+                            )}
                             <button
                                 onClick={handleSubmit}
                                 disabled={isSubmitting || isResetting}
@@ -10665,7 +10724,7 @@
                                 {isSubmitting ? (
                                     <><i className="fas fa-spinner fa-spin"></i><span>提交中...</span></>
                                 ) : (
-                                    <><i className="fas fa-check"></i><span>確認盤點</span></>
+                                    <><i className={`fas ${isQueueMode ? 'fa-cart-plus' : 'fa-check'}`}></i><span>{isQueueMode ? '加入清單' : '確認盤點'}</span></>
                                 )}
                             </button>
                         </div>
@@ -13049,15 +13108,15 @@
 
             // ========== 盤點操作處理函數 ==========
             // 開啟單筆盤點 Modal
-                    const handleOpenInventoryModal = (asset) => {
+            const handleOpenInventoryModal = (asset) => {
                 if (!hasActiveInventoryForAsset(asset.assetId)) {
                     alert('此資產目前沒有進行中的盤點會話');
                     return;
                 }
                 setInventoryModalSessionCount(getAssetInventorySessionCount(asset.assetId));
-                        setInventoryModalAsset(asset);
-                        setShowInventoryModal(true);
-                    };
+                setInventoryModalAsset(asset);
+                setShowInventoryModal(true);
+            };
 
             // 開啟批次盤點 Modal
             const handleBatchInventory = () => {
@@ -13086,9 +13145,13 @@
                     const payload = activeItems.map(item => ({
                         assetId: item.assetId,
                         result: item.status,
-                        remarks: ''
+                        remarks: item.actionPayload?.remarks || '',
+                        ...(item.actionPayload?.ismsData ? { ismsData: item.actionPayload.ismsData } : {})
                     }));
-                    google.script.run
+                    const methodName = payload.some(item => Object.prototype.hasOwnProperty.call(item, 'ismsData'))
+                        ? 'markBatchInventoryWithIsms'
+                        : 'markBatchInventoryInActiveSessions';
+                    const runner = google.script.run
                         .withSuccessHandler((response) => {
                             hideFlyProgressBar('盤點完成！', 300);
                             if (response && response.error) {
@@ -13103,8 +13166,8 @@
                         .withFailureHandler((error) => {
                             hideFlyProgressBar('盤點失敗', 0);
                             alert('盤點送出失敗：' + (error?.message || error));
-                        })
-                        .markBatchInventoryInActiveSessions(payload);
+                        });
+                    runner[methodName](payload);
                     return;
                 }
                 if (typeof BatchList_getItems !== 'function') {
@@ -13133,6 +13196,55 @@
                 // 刷新卡片數據
                 refreshCardData();
             }, [loadPendingInventoryAssignments, refreshCardData, viewMode]);
+
+            const handleInventoryQueue = useCallback((payload, summary) => {
+                if (!window.AssetCartStore) return;
+                const queueAssetIds = Array.isArray(payload?.assetIds)
+                    ? payload.assetIds
+                    : [inventoryModalAsset?.assetId];
+                const normalizedAssetIds = queueAssetIds
+                    .map(id => String(id || '').trim())
+                    .filter(Boolean);
+                if (normalizedAssetIds.length === 0) {
+                    return;
+                }
+
+                const normalizedPayload = payload?.actionPayload
+                    ? JSON.parse(JSON.stringify(payload.actionPayload))
+                    : {};
+                const statusValue = String(payload?.status || '').trim();
+                if (!statusValue) {
+                    if (typeof window.BatchList_showToast === 'function') {
+                        window.BatchList_showToast('請選擇盤點結果', 'warning');
+                    } else {
+                        alert('請選擇盤點結果');
+                    }
+                    return;
+                }
+
+                const addedAssetNames = [];
+                normalizedAssetIds.forEach(assetId => {
+                    const assetDetail = resolveAssetDetail(assetId);
+                    const added = window.AssetCartStore.addOrUpdateItem({
+                        assetId: assetId,
+                        assetName: assetDetail?.assetName || '',
+                        actionType: 'INVENTORY',
+                        status: statusValue,
+                        actionPayload: normalizedPayload,
+                        actionSummary: summary || `盤點｜${statusValue}`
+                    });
+                    if (added) {
+                        addedAssetNames.push(assetDetail?.assetName || assetId);
+                    }
+                });
+
+                if (addedAssetNames.length > 0 && typeof window.BatchList_showToast === 'function') {
+                    const label = normalizedAssetIds.length > 1
+                        ? `已加入進階清單：${normalizedAssetIds.length} 筆盤點項目`
+                        : `已加入進階清單：${addedAssetNames[0]}`;
+                    window.BatchList_showToast(label, 'success');
+                }
+            }, [inventoryModalAsset, resolveAssetDetail]);
 
             // ========== 批次操作處理函數 ==========
             const handleBatchTransfer = () => {
@@ -13332,12 +13444,17 @@
                         invalidIds.push(...missingInventoryItems.map(item => item.assetId));
                     }
                     if (readyInventoryItems.length > 0) {
-                        const payload = readyInventoryItems.map(item => ({
+                        const inventoryPayload = readyInventoryItems.map(item => ({
                             assetId: item.assetId,
                             result: item.status || '',
-                            remarks: ''
+                            remarks: item.actionPayload?.remarks || '',
+                            ...(item.actionPayload?.ismsData ? { ismsData: item.actionPayload.ismsData } : {})
                         }));
-                        await runScript('markBatchInventoryInActiveSessions', payload);
+                        const hasIsmsData = inventoryPayload.some(item => Object.prototype.hasOwnProperty.call(item, 'ismsData'));
+                        await runScript(
+                            hasIsmsData ? 'markBatchInventoryWithIsms' : 'markBatchInventoryInActiveSessions',
+                            inventoryPayload
+                        );
                         successIds.push(...readyInventoryItems.map(item => item.assetId));
                         handleInventorySuccess();
                     }
@@ -13924,6 +14041,8 @@
                             asset={inventoryModalAsset}
                             isBatch={false}
                             sessionCount={inventoryModalSessionCount}
+                            submitMode={isAdvancedMode ? 'queue' : 'submit'}
+                            onQueue={handleInventoryQueue}
                             onClose={() => {
                                 setShowInventoryModal(false);
                                 setInventoryModalAsset(null);
@@ -13941,6 +14060,8 @@
                             assetIds={selectedInventoryAssetIds}
                             isBatch={true}
                             sessionCount={0}
+                            submitMode={isAdvancedMode ? 'queue' : 'submit'}
+                            onQueue={handleInventoryQueue}
                             onClose={() => {
                                 setShowBatchInventoryModal(false);
                                 setSelectedInventoryAssetIds([]);
