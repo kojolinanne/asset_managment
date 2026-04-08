@@ -12858,7 +12858,7 @@
                     return;
                 }
                 setSelectedAsset(asset);
-                setQuickActionMode('submit');
+                setQuickActionMode(isAdvancedMode ? 'queue' : 'submit');
                 setQuickActionModalType('transfer');
             };
 
@@ -12868,13 +12868,13 @@
                     return;
                 }
                 setSelectedAsset(asset);
-                setQuickActionMode('submit');
+                setQuickActionMode(isAdvancedMode ? 'queue' : 'submit');
                 setQuickActionModalType('lending');
             };
 
             const handleOpenScrapModal = (asset) => {
                 setSelectedAsset(asset);
-                setQuickActionMode('submit');
+                setQuickActionMode(isAdvancedMode ? 'queue' : 'submit');
                 setQuickActionModalType('scrap');
             };
 
