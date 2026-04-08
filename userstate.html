@@ -2963,6 +2963,7 @@
             const [keeperDropdownOpen, setKeeperDropdownOpen] = useState(false);
             const [userDropdownOpen, setUserDropdownOpen] = useState(false);
             const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
+            const [dropdownSearchKeyword, setDropdownSearchKeyword] = useState('');
             const pendingStartOptionsRef = useRef(null);
             const locationDropdownRef = useRef(null);
             const keeperDropdownRef = useRef(null);
@@ -3047,6 +3048,7 @@
                 setKeeperDropdownOpen(false);
                 setUserDropdownOpen(false);
                 setGroupDropdownOpen(false);
+                setDropdownSearchKeyword('');
             }, [filterType]);
 
             useEffect(() => {
@@ -3174,6 +3176,15 @@
             const isKeeperOptionsLoading = isOptionsLoading && availableKeepers.length === 0;
             const isUserOptionsLoading = isOptionsLoading && availableUsers.length === 0;
             const isGroupOptionsLoading = isOptionsLoading && availableGroups.length === 0;
+            const filterDropdownOptions = (options) => {
+                if (!dropdownSearchKeyword) return options;
+                const kw = dropdownSearchKeyword.toLowerCase();
+                return options.filter(item => String(item).toLowerCase().includes(kw));
+            };
+            const filteredLocations = filterDropdownOptions(availableLocations);
+            const filteredKeepers = filterDropdownOptions(availableKeepers);
+            const filteredUsers = filterDropdownOptions(availableUsers);
+            const filteredGroups = filterDropdownOptions(availableGroups);
             const toggleFilterOption = (value) => {
                 setFilterValue(prev => {
                     const current = Array.isArray(prev) ? prev : [];
@@ -3424,7 +3435,7 @@
                                                     <div className="relative" ref={locationDropdownRef}>
                                                         <button
                                                             type="button"
-                                                            onClick={() => setLocationDropdownOpen(prev => !prev)}
+                                                            onClick={() => { setLocationDropdownOpen(prev => { if (!prev) setDropdownSearchKeyword(''); return !prev; }); }}
                                                             className={`w-full px-3 py-2 border rounded-lg text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
                                                                 locationDropdownOpen
                                                                     ? 'border-blue-400 ring-2 ring-blue-100'
@@ -3453,10 +3464,10 @@
                                                                     <div className="flex justify-between px-1 text-xs">
                                                                         <button
                                                                             type="button"
-                                                                            onClick={() => selectAllFilterOptions(availableLocations)}
+                                                                            onClick={() => selectAllFilterOptions(filteredLocations)}
                                                                             className="text-blue-600 hover:text-blue-800 font-medium"
                                                                         >
-                                                                            全選
+                                                                            全選{dropdownSearchKeyword ? '（篩選結果）' : ''}
                                                                         </button>
                                                                         <button
                                                                             type="button"
@@ -3467,14 +3478,26 @@
                                                                         </button>
                                                                     </div>
                                                                 </div>
+                                                                <div className="px-2 py-1.5 border-b border-slate-100">
+                                                                    <div className="relative">
+                                                                        <i className="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                                                                        <input
+                                                                            type="text"
+                                                                            value={dropdownSearchKeyword}
+                                                                            onChange={(e) => setDropdownSearchKeyword(e.target.value)}
+                                                                            placeholder="搜尋地點..."
+                                                                            className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                                                        />
+                                                                    </div>
+                                                                </div>
                                                                 <div className="max-h-72 overflow-y-auto p-1">
                                                                     {isLocationOptionsLoading ? (
                                                                         <div className="py-6 text-center text-sm text-slate-500">
                                                                             <i className="fa-solid fa-spinner fa-spin mr-2"></i>
                                                                             地點載入中...
                                                                         </div>
-                                                                    ) : availableLocations.length > 0 ? (
-                                                                        availableLocations.map(loc => (
+                                                                    ) : filteredLocations.length > 0 ? (
+                                                                        filteredLocations.map(loc => (
                                                                             <label
                                                                                 key={loc}
                                                                                 className="flex items-center gap-2 px-3 py-2.5 rounded-md cursor-pointer hover:bg-slate-50 text-sm text-slate-700"
@@ -3492,7 +3515,7 @@
                                                                             </label>
                                                                         ))
                                                                     ) : (
-                                                                        <div className="py-4 text-center text-sm text-slate-500">找不到符合的地點</div>
+                                                                        <div className="py-4 text-center text-sm text-slate-500">{dropdownSearchKeyword ? '找不到符合的地點' : '無地點資料'}</div>
                                                                     )}
                                                                 </div>
                                                             </div>
@@ -3546,7 +3569,7 @@
                                                     <div className="relative" ref={keeperDropdownRef}>
                                                         <button
                                                             type="button"
-                                                            onClick={() => setKeeperDropdownOpen(prev => !prev)}
+                                                            onClick={() => { setKeeperDropdownOpen(prev => { if (!prev) setDropdownSearchKeyword(''); return !prev; }); }}
                                                             className={`w-full px-3 py-2 border rounded-lg text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
                                                                 keeperDropdownOpen
                                                                     ? 'border-blue-400 ring-2 ring-blue-100'
@@ -3575,10 +3598,10 @@
                                                                     <div className="flex justify-between px-1 text-xs">
                                                                         <button
                                                                             type="button"
-                                                                            onClick={() => selectAllFilterOptions(availableKeepers)}
+                                                                            onClick={() => selectAllFilterOptions(filteredKeepers)}
                                                                             className="text-blue-600 hover:text-blue-800 font-medium"
                                                                         >
-                                                                            全選
+                                                                            全選{dropdownSearchKeyword ? '（篩選結果）' : ''}
                                                                         </button>
                                                                         <button
                                                                             type="button"
@@ -3589,14 +3612,26 @@
                                                                         </button>
                                                                     </div>
                                                                 </div>
+                                                                <div className="px-2 py-1.5 border-b border-slate-100">
+                                                                    <div className="relative">
+                                                                        <i className="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                                                                        <input
+                                                                            type="text"
+                                                                            value={dropdownSearchKeyword}
+                                                                            onChange={(e) => setDropdownSearchKeyword(e.target.value)}
+                                                                            placeholder="搜尋保管人..."
+                                                                            className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                                                        />
+                                                                    </div>
+                                                                </div>
                                                                 <div className="max-h-72 overflow-y-auto p-1">
                                                                     {isKeeperOptionsLoading ? (
                                                                         <div className="py-6 text-center text-sm text-slate-500">
                                                                             <i className="fa-solid fa-spinner fa-spin mr-2"></i>
                                                                             保管人載入中...
                                                                         </div>
-                                                                    ) : availableKeepers.length > 0 ? (
-                                                                        availableKeepers.map(keeper => (
+                                                                    ) : filteredKeepers.length > 0 ? (
+                                                                        filteredKeepers.map(keeper => (
                                                                             <label
                                                                                 key={keeper}
                                                                                 className="flex items-center gap-2 px-3 py-2.5 rounded-md cursor-pointer hover:bg-slate-50 text-sm text-slate-700"
@@ -3614,7 +3649,7 @@
                                                                             </label>
                                                                         ))
                                                                     ) : (
-                                                                        <div className="py-4 text-center text-sm text-slate-500">找不到符合的保管人</div>
+                                                                        <div className="py-4 text-center text-sm text-slate-500">{dropdownSearchKeyword ? '找不到符合的保管人' : '無保管人資料'}</div>
                                                                     )}
                                                                 </div>
                                                             </div>
@@ -3668,7 +3703,7 @@
                                                     <div className="relative" ref={userDropdownRef}>
                                                         <button
                                                             type="button"
-                                                            onClick={() => setUserDropdownOpen(prev => !prev)}
+                                                            onClick={() => { setUserDropdownOpen(prev => { if (!prev) setDropdownSearchKeyword(''); return !prev; }); }}
                                                             className={`w-full px-3 py-2 border rounded-lg text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
                                                                 userDropdownOpen
                                                                     ? 'border-blue-400 ring-2 ring-blue-100'
@@ -3697,10 +3732,10 @@
                                                                     <div className="flex justify-between px-1 text-xs">
                                                                         <button
                                                                             type="button"
-                                                                            onClick={() => selectAllFilterOptions(availableUsers)}
+                                                                            onClick={() => selectAllFilterOptions(filteredUsers)}
                                                                             className="text-blue-600 hover:text-blue-800 font-medium"
                                                                         >
-                                                                            全選
+                                                                            全選{dropdownSearchKeyword ? '（篩選結果）' : ''}
                                                                         </button>
                                                                         <button
                                                                             type="button"
@@ -3711,14 +3746,26 @@
                                                                         </button>
                                                                     </div>
                                                                 </div>
+                                                                <div className="px-2 py-1.5 border-b border-slate-100">
+                                                                    <div className="relative">
+                                                                        <i className="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                                                                        <input
+                                                                            type="text"
+                                                                            value={dropdownSearchKeyword}
+                                                                            onChange={(e) => setDropdownSearchKeyword(e.target.value)}
+                                                                            placeholder="搜尋使用人..."
+                                                                            className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                                                        />
+                                                                    </div>
+                                                                </div>
                                                                 <div className="max-h-72 overflow-y-auto p-1">
                                                                     {isUserOptionsLoading ? (
                                                                         <div className="py-6 text-center text-sm text-slate-500">
                                                                             <i className="fa-solid fa-spinner fa-spin mr-2"></i>
                                                                             使用人載入中...
                                                                         </div>
-                                                                    ) : availableUsers.length > 0 ? (
-                                                                        availableUsers.map(user => (
+                                                                    ) : filteredUsers.length > 0 ? (
+                                                                        filteredUsers.map(user => (
                                                                             <label
                                                                                 key={user}
                                                                                 className="flex items-center gap-2 px-3 py-2.5 rounded-md cursor-pointer hover:bg-slate-50 text-sm text-slate-700"
@@ -3736,7 +3783,7 @@
                                                                             </label>
                                                                         ))
                                                                     ) : (
-                                                                        <div className="py-4 text-center text-sm text-slate-500">找不到符合的使用人</div>
+                                                                        <div className="py-4 text-center text-sm text-slate-500">{dropdownSearchKeyword ? '找不到符合的使用人' : '無使用人資料'}</div>
                                                                     )}
                                                                 </div>
                                                             </div>
@@ -3790,7 +3837,7 @@
                                                     <div className="relative" ref={groupDropdownRef}>
                                                         <button
                                                             type="button"
-                                                            onClick={() => setGroupDropdownOpen(prev => !prev)}
+                                                            onClick={() => { setGroupDropdownOpen(prev => { if (!prev) setDropdownSearchKeyword(''); return !prev; }); }}
                                                             className={`w-full px-3 py-2 border rounded-lg text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
                                                                 groupDropdownOpen
                                                                     ? 'border-blue-400 ring-2 ring-blue-100'
@@ -3819,10 +3866,10 @@
                                                                     <div className="flex justify-between px-1 text-xs">
                                                                         <button
                                                                             type="button"
-                                                                            onClick={() => selectAllFilterOptions(availableGroups)}
+                                                                            onClick={() => selectAllFilterOptions(filteredGroups)}
                                                                             className="text-blue-600 hover:text-blue-800 font-medium"
                                                                         >
-                                                                            全選
+                                                                            全選{dropdownSearchKeyword ? '（篩選結果）' : ''}
                                                                         </button>
                                                                         <button
                                                                             type="button"
@@ -3833,14 +3880,26 @@
                                                                         </button>
                                                                     </div>
                                                                 </div>
+                                                                <div className="px-2 py-1.5 border-b border-slate-100">
+                                                                    <div className="relative">
+                                                                        <i className="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                                                                        <input
+                                                                            type="text"
+                                                                            value={dropdownSearchKeyword}
+                                                                            onChange={(e) => setDropdownSearchKeyword(e.target.value)}
+                                                                            placeholder="搜尋組別..."
+                                                                            className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                                                        />
+                                                                    </div>
+                                                                </div>
                                                                 <div className="max-h-72 overflow-y-auto p-1">
                                                                     {isGroupOptionsLoading ? (
                                                                         <div className="py-6 text-center text-sm text-slate-500">
                                                                             <i className="fa-solid fa-spinner fa-spin mr-2"></i>
                                                                             組別載入中...
                                                                         </div>
-                                                                    ) : availableGroups.length > 0 ? (
-                                                                        availableGroups.map(group => (
+                                                                    ) : filteredGroups.length > 0 ? (
+                                                                        filteredGroups.map(group => (
                                                                             <label
                                                                                 key={group}
                                                                                 className="flex items-center gap-2 px-3 py-2.5 rounded-md cursor-pointer hover:bg-slate-50 text-sm text-slate-700"
@@ -3858,7 +3917,7 @@
                                                                             </label>
                                                                         ))
                                                                     ) : (
-                                                                        <div className="py-4 text-center text-sm text-slate-500">找不到符合的組別</div>
+                                                                        <div className="py-4 text-center text-sm text-slate-500">{dropdownSearchKeyword ? '找不到符合的組別' : '無組別資料'}</div>
                                                                     )}
                                                                 </div>
                                                             </div>
