@@ -775,7 +775,8 @@ function getUserStateData(forceUserScope) {
     category: asset.assetCategory,
     userName: asset.userName || '無', // 使用者名稱，物品總表顯示「無」
     sourceSheet: asset.sourceSheet,
-    isItAsset: asset.isItAsset || ''  // ✨ ISMS：是否為資訊資產（X欄）
+    isItAsset: asset.isItAsset || '',  // ✨ ISMS：是否為資訊資產（X欄）
+    isIsoScope: asset.isIsoScope || '' // ✨ ISMS：是否在ISO驗證範圍內（Z欄）
   }));
 
   return {
@@ -6339,14 +6340,19 @@ function getPendingInventoryAssignments(forceUserScope) {
 
     // ✨ 從主表建立 IS_IT_ASSET 對照（單一事實來源）
     const masterIsItAssetMap = {};
+    const masterIsIsoScopeMap = {};
     const propertyMasterSheet = ss.getSheetByName(PROPERTY_MASTER_SHEET_NAME);
     const itemMasterSheet = ss.getSheetByName(ITEM_MASTER_SHEET_NAME);
     [propertyMasterSheet, itemMasterSheet].forEach(sheet => {
       if (!sheet || sheet.getLastRow() <= 1) return;
-      const masterData = sheet.getRange(2, 1, sheet.getLastRow() - 1, PROPERTY_COLUMN_INDICES.IS_IT_ASSET).getValues();
+      const masterData = sheet.getRange(2, 1, sheet.getLastRow() - 1, PROPERTY_COLUMN_INDICES.IS_ISO_SCOPE).getValues();
       masterData.forEach(row => {
         const aid = row[PROPERTY_COLUMN_INDICES.ASSET_ID - 1];
-        if (aid) masterIsItAssetMap[String(aid).trim()] = row[PROPERTY_COLUMN_INDICES.IS_IT_ASSET - 1] || '';
+        if (aid) {
+          const aidStr = String(aid).trim();
+          masterIsItAssetMap[aidStr] = row[PROPERTY_COLUMN_INDICES.IS_IT_ASSET - 1] || '';
+          masterIsIsoScopeMap[aidStr] = row[PROPERTY_COLUMN_INDICES.IS_ISO_SCOPE - 1] || '';
+        }
       });
     });
 
@@ -6417,7 +6423,8 @@ function getPendingInventoryAssignments(forceUserScope) {
         isItAsset: masterIsItAssetMap[String(assetId).trim()] !== undefined && masterIsItAssetMap[String(assetId).trim()] !== ''
           ? masterIsItAssetMap[String(assetId).trim()]
           : (detailReadCols >= ID_IS_IT_ASSET_COLUMN_INDEX ? (row[ID_IS_IT_ASSET_COLUMN_INDEX - 1] || '') : ''),
-        ismsAssetId: detailReadCols >= ID_ISMS_ASSET_ID_COLUMN_INDEX ? (row[ID_ISMS_ASSET_ID_COLUMN_INDEX - 1] || '') : '' // ✨ ISMS
+        ismsAssetId: detailReadCols >= ID_ISMS_ASSET_ID_COLUMN_INDEX ? (row[ID_ISMS_ASSET_ID_COLUMN_INDEX - 1] || '') : '', // ✨ ISMS
+        isIsoScope: masterIsIsoScopeMap[String(assetId).trim()] || '' // ✨ ISMS：是否在ISO驗證範圍內（Z欄）
       });
     });
 
@@ -8025,7 +8032,7 @@ function getIsmsMappingForAssets(assetIds) {
  * @param {string} ismsAssetId - 資訊資產編號（空字串表示不對照）
  * @returns {Object} 操作結果
  */
-function saveIsmsClassification(assetId, isItAsset, ismsAssetId) {
+function saveIsmsClassification(assetId, isItAsset, ismsAssetId, isIsoScope) {
   try {
     const currentUserEmail = Session.getActiveUser().getEmail();
     const timestamp = new Date().toISOString();
@@ -8038,6 +8045,12 @@ function saveIsmsClassification(assetId, isItAsset, ismsAssetId) {
         ? PROPERTY_COLUMN_INDICES
         : ITEM_COLUMN_INDICES;
       location.sheet.getRange(location.rowIndex, indices.IS_IT_ASSET).setValue(isItAsset ? '是' : '');
+      // 更新 IS_ISO_SCOPE 欄位（僅當 isItAsset 為 true 時允許 isIsoScope）
+      if (indices.IS_ISO_SCOPE) {
+        location.sheet.getRange(location.rowIndex, indices.IS_ISO_SCOPE).setValue(
+          (isItAsset && isIsoScope) ? '是' : ''
+        );
+      }
     }
 
     // 2. 更新 ISMS 對照表
@@ -8149,7 +8162,7 @@ function markAssetInventoryWithIsms(assetId, result, remarks, ismsData) {
 
   // 如果有 ISMS 資料，同步處理 ISMS 分類
   if (ismsData && (ismsData.isItAsset !== undefined)) {
-    const ismsResult = saveIsmsClassification(assetId, ismsData.isItAsset, ismsData.ismsAssetId || '');
+    const ismsResult = saveIsmsClassification(assetId, ismsData.isItAsset, ismsData.ismsAssetId || '', ismsData.isIsoScope || false);
     if (!ismsResult.success) {
       Logger.log('ISMS 分類儲存失敗（盤點結果已成功）: ' + ismsResult.error);
     }
@@ -8180,7 +8193,7 @@ function markBatchInventoryWithIsms(assetResults) {
   for (let i = 0; i < assetResults.length; i++) {
     var item = assetResults[i];
     if (item.ismsData && (item.ismsData.isItAsset !== undefined)) {
-      var ismsResult = saveIsmsClassification(item.assetId, item.ismsData.isItAsset, item.ismsData.ismsAssetId || '');
+      var ismsResult = saveIsmsClassification(item.assetId, item.ismsData.isItAsset, item.ismsData.ismsAssetId || '', item.ismsData.isIsoScope || false);
       if (!ismsResult.success) {
         Logger.log('批次 ISMS 分類儲存失敗 (' + item.assetId + '): ' + ismsResult.error);
       }

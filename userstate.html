@@ -10198,6 +10198,8 @@
             const _isItAssetInit = !isBatch && !!asset && String(asset.isItAsset || '').trim() === '是';
             const [ismsExpanded, setIsmsExpanded] = useState(_isItAssetInit);
             const [isItAsset, setIsItAsset] = useState(_isItAssetInit);
+            const _isIsoScopeInit = !isBatch && !!asset && String(asset.isIsoScope || '').trim() === '是';
+            const [isIsoScope, setIsIsoScope] = useState(_isIsoScopeInit);
             const [selectedIsmsAssetId, setSelectedIsmsAssetId] = useState(
                 !isBatch && asset ? String(asset.ismsAssetId || '').trim() : ''
             );
@@ -10226,7 +10228,8 @@
                 if (!ismsFeatureEnabled || !ismsExpanded) return null;
                 return {
                     isItAsset: isItAsset,
-                    ismsAssetId: isItAsset ? selectedIsmsAssetId : ''
+                    ismsAssetId: isItAsset ? selectedIsmsAssetId : '',
+                    isIsoScope: isItAsset ? isIsoScope : false
                 };
             };
 
@@ -10480,6 +10483,7 @@
                                                         setIsItAsset(newValue);
                                                         if (!newValue) {
                                                             setSelectedIsmsAssetId('');
+                                                            setIsIsoScope(false);
                                                         }
                                                     }}
                                                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isItAsset ? 'bg-indigo-600' : 'bg-slate-300'}`}
@@ -10487,6 +10491,20 @@
                                                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isItAsset ? 'translate-x-6' : 'translate-x-1'}`}></span>
                                                 </button>
                                             </div>
+
+                                            {/* 是否在驗證範圍開關 */}
+                                            {isItAsset && (
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-sm text-slate-700">是否在驗證範圍？</label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setIsIsoScope(!isIsoScope)}
+                                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${isIsoScope ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                                    >
+                                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${isIsoScope ? 'translate-x-6' : 'translate-x-1'}`}></span>
+                                                    </button>
+                                                </div>
+                                            )}
 
                                             {/* ISMS 資產選擇器 */}
                                             {isItAsset && (
