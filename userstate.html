@@ -11086,6 +11086,10 @@
                 asset: null,
                 displayMode: 'modal'
             });
+            const queueReturnContextRef = useRef({
+                assetId: '',
+                shouldRestoreActionPanel: false
+            });
             const scannerCompletionRef = useRef({
                 outcome: 'idle',
                 assetId: '',
@@ -11469,19 +11473,31 @@
                 if (!added) {
                     return;
                 }
+                queueReturnContextRef.current = {
+                    assetId: asset.assetId,
+                    shouldRestoreActionPanel: true
+                };
                 if (typeof window.BatchList_showToast === 'function') {
                     window.BatchList_showToast(`已加入進階清單：${asset.assetName || asset.assetId}`, 'success');
                 }
             }, [actionPanelState.assetId, resolveAssetDetail]);
 
             const handleQueueModalClose = useCallback(() => {
+                const { assetId, shouldRestoreActionPanel } = queueReturnContextRef.current;
+                queueReturnContextRef.current = {
+                    assetId: '',
+                    shouldRestoreActionPanel: false
+                };
                 if (quickActionMode === 'queue' && window.AssetCartStore) {
                     window.AssetCartStore.clearPendingAsset();
                 }
                 setQuickActionModalType(null);
                 setSelectedAsset(null);
                 setQuickActionMode('submit');
-            }, [quickActionMode]);
+                if (shouldRestoreActionPanel && assetId) {
+                    openActionPanel(assetId, { displayMode: 'modal', source: 'queue-restore' });
+                }
+            }, [openActionPanel, quickActionMode]);
 
             const openQueueActionModal = useCallback((actionType) => {
                 const modalType = ACTION_MODAL_BY_TYPE[actionType];
@@ -11505,6 +11521,10 @@
                     }
                     return;
                 }
+                queueReturnContextRef.current = {
+                    assetId: asset.assetId,
+                    shouldRestoreActionPanel: false
+                };
                 setSelectedAsset(asset);
                 setQuickActionMode('queue');
                 setQuickActionModalType(modalType);
