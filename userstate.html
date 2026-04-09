@@ -4889,11 +4889,10 @@
             </div>
         );
 
-        const ActionPanel = ({ asset, displayMode = 'modal', hasInventoryTask, inventoryStatusLabel, ismsAssets = [], ismsEnabled = false, onPrepareInventory, onSelectAction, onSelectInventory, onClose }) => {
+        const ActionPanel = ({ asset, displayMode = 'modal', hasInventoryTask, inventoryStatusLabel, ismsAssets = [], ismsEnabled = false, onSelectAction, onSelectInventory, onClose }) => {
             const hasAsset = Boolean(asset && asset.assetId);
             const [panelView, setPanelView] = useState('actions');
             const [inventoryInitialResult, setInventoryInitialResult] = useState(INVENTORY_STATUS_LABELS.NORMAL);
-            const [isPreparingInventory, setIsPreparingInventory] = useState(false);
             const inventoryForm = useInventoryFormState({
                 asset,
                 isBatch: false,
@@ -4920,22 +4919,7 @@
                 }
                 setInventoryInitialResult(status);
                 setPanelView('inventory');
-                if (typeof onPrepareInventory === 'function') {
-                    setIsPreparingInventory(true);
-                    Promise.resolve(onPrepareInventory(asset.assetId))
-                        .catch((error) => {
-                            const message = error?.message || '同步最新盤點資料失敗';
-                            if (typeof window.BatchList_showToast === 'function') {
-                                window.BatchList_showToast(message, 'warning');
-                            } else {
-                                alert(message);
-                            }
-                        })
-                        .finally(() => {
-                            setIsPreparingInventory(false);
-                        });
-                }
-            }, [asset?.assetId, hasAsset, hasInventoryTask, onPrepareInventory]);
+            }, [hasAsset, hasInventoryTask]);
 
             const handleInventorySubmit = useCallback(() => {
                 if (!hasAsset || typeof onSelectInventory !== 'function') return;
@@ -5006,9 +4990,7 @@
                         {panelView === 'inventory' ? (
                             <div className="action-panel__inventory-intro">
                                 <div className="action-panel__inventory-note">
-                                    {isPreparingInventory
-                                        ? '已先開啟盤點設定，正在背景同步最新的盤點與 ISMS 狀態...'
-                                        : '加入清單後，送出時會同步更新所有進行中的盤點會話；若啟用 ISMS，也可一併設定資訊資產分類。'}
+                                    加入清單後，送出時會同步更新所有進行中的盤點會話；若啟用 ISMS，也可一併設定資訊資產分類。
                                 </div>
                                 <InventoryFormFields
                                     form={inventoryForm}
@@ -5058,7 +5040,7 @@
                                                     key={label}
                                                     type="button"
                                                     className={`action-panel__chip action-panel__chip--${color === 'green' ? 'normal' : color === 'red' ? 'lost' : color === 'orange' ? 'damaged' : 'old'}`}
-                                                    disabled={!hasAsset || isPreparingInventory}
+                                                    disabled={!hasAsset}
                                                     onClick={() => openInventorySettings(label)}
                                                 >
                                                     <i className={icon}></i>
@@ -5095,7 +5077,7 @@
                     <div className="action-panel__hint">
                         {panelView === 'inventory'
                             ? '設定完成後加入清單；可帶入備註與 ISMS 分類。'
-                            : (isPreparingInventory ? '正在同步最新的盤點/ISMS 狀態...' : '點擊上方按鈕將資產加入進階批次處理清單')}
+                            : '點擊上方按鈕將資產加入進階批次處理清單'}
                     </div>
                 </div>
             );
@@ -11088,6 +11070,7 @@
             const pendingInventoryInFlightRef = useRef(new Map());
             const PENDING_INVENTORY_CACHE_TTL = 10000;
             const advancedSubmitRef = useRef(false);
+            const focusRefreshRef = useRef(0);
             const scrapPendingLoadRef = useRef(null);
             const scrapPendingRequestRef = useRef(0);
             const transferPendingLoadRef = useRef(null);
@@ -12617,6 +12600,19 @@
                 };
             }, []);
 
+            useEffect(() => {
+                const handleWindowFocus = () => {
+                    if (!isReady) return;
+                    const now = Date.now();
+                    if (now - focusRefreshRef.current < 5000) return;
+                    focusRefreshRef.current = now;
+                    loadData();
+                };
+
+                window.addEventListener('focus', handleWindowFocus);
+                return () => window.removeEventListener('focus', handleWindowFocus);
+            }, [isReady, viewMode]);
+
             // 同步狀態到全域變數供 jQuery Modal 使用
             useEffect(() => {
                 window.pendingApprovals = pendingApprovalsData;
@@ -13511,53 +13507,6 @@
                 }
             }, [inventoryModalAsset, resolveAssetDetail]);
 
-            const mergeLatestAssetSnapshot = useCallback((latestAsset) => {
-                if (!latestAsset || !latestAsset.assetId) return latestAsset;
-                setActionPanelState(prev => {
-                    if (!prev || String(prev.assetId || '') !== String(latestAsset.assetId || '')) {
-                        return prev;
-                    }
-                    return {
-                        ...prev,
-                        asset: {
-                            ...(prev.asset || {}),
-                            ...latestAsset
-                        }
-                    };
-                });
-                setAllAssets(prev => prev.map(asset => {
-                    if (String(asset.assetId || '') !== String(latestAsset.assetId || '')) {
-                        return asset;
-                    }
-                    return {
-                        ...asset,
-                        ...latestAsset,
-                        searchText: [
-                            latestAsset.assetId,
-                            latestAsset.assetName,
-                            latestAsset.leader,
-                            latestAsset.location
-                        ].filter(Boolean).join(' ').toLowerCase()
-                    };
-                }));
-                return latestAsset;
-            }, []);
-
-            const prepareLatestInventoryAsset = useCallback((assetId) => (
-                new Promise((resolve, reject) => {
-                    google.script.run
-                        .withSuccessHandler((response) => {
-                            if (!response || response.error || response.success === false || !response.asset) {
-                                reject(new Error(response?.error || '載入最新盤點資料失敗'));
-                                return;
-                            }
-                            resolve(mergeLatestAssetSnapshot(response.asset));
-                        })
-                        .withFailureHandler(reject)
-                        .getAssetInventoryFormData(assetId, viewMode === 'user');
-                })
-            ), [mergeLatestAssetSnapshot, viewMode]);
-
             // ========== 批次操作處理函數 ==========
             const handleBatchTransfer = () => {
                 if (!transferOptions) {
@@ -14140,7 +14089,6 @@
                                     inventoryStatusLabel={actionPanelState.assetId ? resolveInventoryStatusLabel(actionPanelState.assetId) : '無盤點任務'}
                                     ismsAssets={ismsAssets}
                                     ismsEnabled={ismsEnabled}
-                                    onPrepareInventory={prepareLatestInventoryAsset}
                                     onSelectAction={(actionType) => openQueueActionModal(actionType)}
                                     onSelectInventory={handleInventoryQueue}
                                     onClose={closeActionPanel}
