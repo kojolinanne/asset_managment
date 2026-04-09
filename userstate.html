@@ -11070,7 +11070,6 @@
             const pendingInventoryInFlightRef = useRef(new Map());
             const PENDING_INVENTORY_CACHE_TTL = 10000;
             const advancedSubmitRef = useRef(false);
-            const focusRefreshRef = useRef(0);
             const scrapPendingLoadRef = useRef(null);
             const scrapPendingRequestRef = useRef(0);
             const transferPendingLoadRef = useRef(null);
@@ -11318,18 +11317,32 @@
                         assetId: fallback.id || fallback.assetId,
                         assetName: fallback.assetName || '',
                         leader: fallback.keeperName || fallback.leader || '',
+                        leaderEmail: fallback.leaderEmail || '',
                         userName: fallback.userName || '',
+                        userEmail: fallback.userEmail || '',
                         location: fallback.location || '',
-                        status: fallback.status || ''
+                        status: fallback.status || '',
+                        category: fallback.category || '',
+                        sourceSheet: fallback.sourceSheet || '',
+                        isItAsset: fallback.isItAsset || '',
+                        isIsoScope: fallback.isIsoScope || '',
+                        ismsAssetId: fallback.ismsAssetId || ''
                     };
                 }
                 return {
                     assetId: normalizedId,
                     assetName: '',
                     leader: '',
+                    leaderEmail: '',
                     userName: '',
+                    userEmail: '',
                     location: '',
-                    status: ''
+                    status: '',
+                    category: '',
+                    sourceSheet: '',
+                    isItAsset: '',
+                    isIsoScope: '',
+                    ismsAssetId: ''
                 };
             }, [assetIndex]);
 
@@ -12600,19 +12613,6 @@
                 };
             }, []);
 
-            useEffect(() => {
-                const handleWindowFocus = () => {
-                    if (!isReady) return;
-                    const now = Date.now();
-                    if (now - focusRefreshRef.current < 5000) return;
-                    focusRefreshRef.current = now;
-                    loadData();
-                };
-
-                window.addEventListener('focus', handleWindowFocus);
-                return () => window.removeEventListener('focus', handleWindowFocus);
-            }, [isReady, viewMode]);
-
             // 同步狀態到全域變數供 jQuery Modal 使用
             useEffect(() => {
                 window.pendingApprovals = pendingApprovalsData;
@@ -13004,10 +13004,20 @@
                     .filter(asset => asset.status === '在庫')
                     .map(asset => ({
                         id: asset.assetId,
+                        assetId: asset.assetId,
                         assetName: asset.assetName,
                         keeperName: asset.leader,
+                        leader: asset.leader,
+                        leaderEmail: asset.leaderEmail || '',
+                        userName: asset.userName || '',
+                        userEmail: asset.userEmail || '',
                         location: asset.location,
-                        status: asset.status
+                        status: asset.status,
+                        category: asset.category || '',
+                        sourceSheet: asset.sourceSheet || '',
+                        isItAsset: asset.isItAsset || '',
+                        isIsoScope: asset.isIsoScope || '',
+                        ismsAssetId: asset.ismsAssetId || ''
                     }));
 
                 // 重建 BatchList 索引
