@@ -4903,9 +4903,9 @@
             });
 
             useEffect(() => {
-                setPanelView('actions');
                 setInventoryInitialResult(INVENTORY_STATUS_LABELS.NORMAL);
-            }, [asset?.assetId]);
+                setPanelView(hasInventoryTask ? 'inventory' : 'actions');
+            }, [asset?.assetId, hasInventoryTask]);
 
             const openInventorySettings = useCallback((status = INVENTORY_STATUS_LABELS.NORMAL) => {
                 if (!hasAsset) return;
