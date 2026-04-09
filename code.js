@@ -440,6 +440,46 @@ function getGroupMemberEmails(targetEmail) {
 }
 
 /**
+ * 取得目前使用者的組別與 ISMS 盤點白名單權限
+ * G欄：使用者組別
+ * H欄：允許使用 ISMS 盤點的組別
+ * 管理員永遠可用，不受 H 欄限制
+ * @param {SpreadsheetApp.Spreadsheet} ss
+ * @param {string} currentUserEmail
+ * @param {boolean} isAdmin
+ * @returns {{ currentUserGroup: string, allowedIsmsGroups: string[], canUseIsmsInventory: boolean }}
+ */
+function getIsmsInventoryAccess_(ss, currentUserEmail, isAdmin) {
+  const normalizedEmail = String(currentUserEmail || '').toLowerCase().trim();
+  let currentUserGroup = '未分組';
+  const allowedIsmsGroupSet = new Set();
+
+  const keeperEmailSheet = ss.getSheetByName(KEEPER_EMAIL_MAP_SHEET_NAME);
+  if (keeperEmailSheet && keeperEmailSheet.getLastRow() > 1) {
+    const keeperData = keeperEmailSheet.getRange(2, 1, keeperEmailSheet.getLastRow() - 1, 8).getValues();
+    keeperData.forEach(row => {
+      const email = row[1];
+      const groupName = row[6] ? String(row[6]).trim() : '';
+      const allowedGroup = row[7] ? String(row[7]).trim() : '';
+      if (allowedGroup) {
+        allowedIsmsGroupSet.add(allowedGroup);
+      }
+      if (!email) return;
+      const rowEmail = String(email).toLowerCase().trim();
+      if (rowEmail === normalizedEmail && groupName) {
+        currentUserGroup = groupName;
+      }
+    });
+  }
+
+  return {
+    currentUserGroup: currentUserGroup,
+    allowedIsmsGroups: Array.from(allowedIsmsGroupSet),
+    canUseIsmsInventory: Boolean(isAdmin || (currentUserGroup && allowedIsmsGroupSet.has(currentUserGroup)))
+  };
+}
+
+/**
  * 查找指定 assetId 所在的實際工作表及列號。
  * @param {string} assetId - 要查找的資產ID。
  * @returns {object|null} - 如果找到，回傳 { sheet: Sheet, rowIndex: number, sheetName: string }，否則回傳 null。
@@ -6109,6 +6149,8 @@ function getInventoryData(forceUserScope) {
     // 提取唯一的使用人 (只從財產總表,因為物品總表沒有使用人欄位)
     const users = [...new Set(availableAssets.map(a => a.userName))].filter(Boolean).sort();
 
+    const ismsAccess = getIsmsInventoryAccess_(ss, currentUserEmail, isAdmin);
+
     // 建立 Email -> 姓名 / 組別 對照表（用於前端顯示指派人員與分派判斷）
     const emailToNameMap = {};
     const emailToGroupMap = {};
@@ -6140,7 +6182,7 @@ function getInventoryData(forceUserScope) {
         }
       });
     }
-    const currentUserGroup = emailToGroupMap[currentUserEmail] || '未分組';
+    const currentUserGroup = ismsAccess.currentUserGroup || emailToGroupMap[currentUserEmail] || '未分組';
     const groups = Array.from(new Set(Object.values(emailToGroupMap).filter(Boolean))).sort();
     const assigneeUsers = Object.values(assigneeUserMap).sort((a, b) => {
       const left = a.name || a.email || '';
@@ -6190,7 +6232,8 @@ function getInventoryData(forceUserScope) {
     // ✨ 取得 ISMS 資訊資產清單（供盤點時選擇）
     let ismsAssets = [];
     let ismsEnabled = false;
-    if (ISMS_SPREADSHEET_ID && ISMS_SPREADSHEET_ID !== 'YOUR_ISMS_SPREADSHEET_ID_HERE') {
+    const isIsmsConfigured = ISMS_SPREADSHEET_ID && ISMS_SPREADSHEET_ID !== 'YOUR_ISMS_SPREADSHEET_ID_HERE';
+    if (isIsmsConfigured && ismsAccess.canUseIsmsInventory) {
       ismsEnabled = true;
       try {
         const ismsResult = getIsmsAssetList();
@@ -6219,7 +6262,7 @@ function getInventoryData(forceUserScope) {
       myPendingInventoryCount: myPendingInventoryCount, // ✨ 使用者待盤點資產數量
       totalPendingInventoryCount: totalPendingInventoryCount, // ✨ 管理員全域待盤點資產數量
       ismsAssets: ismsAssets, // ✨ ISMS 資訊資產清單
-      ismsEnabled: ismsEnabled // ✨ ISMS 功能是否啟用
+      ismsEnabled: ismsEnabled // ✨ 目前使用者是否可使用 ISMS 功能
     };
   } catch (e) {
     Logger.log(`getInventoryData 失敗: ${e.message}`);
@@ -8183,9 +8226,17 @@ function markAssetInventoryWithIsms(assetId, result, remarks, ismsData) {
 
   // 如果有 ISMS 資料，同步處理 ISMS 分類
   if (ismsData && (ismsData.isItAsset !== undefined)) {
-    const ismsResult = saveIsmsClassification(assetId, ismsData.isItAsset, ismsData.ismsAssetId || '', ismsData.isIsoScope || false);
-    if (!ismsResult.success) {
-      Logger.log('ISMS 分類儲存失敗（盤點結果已成功）: ' + ismsResult.error);
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const currentUserEmail = Session.getActiveUser().getEmail();
+    const isAdmin = checkAdminPermissions();
+    const ismsAccess = getIsmsInventoryAccess_(ss, currentUserEmail, isAdmin);
+    if (!ismsAccess.canUseIsmsInventory) {
+      Logger.log('使用者無 ISMS 盤點權限，已忽略 ISMS 資料: ' + assetId);
+    } else {
+      const ismsResult = saveIsmsClassification(assetId, ismsData.isItAsset, ismsData.ismsAssetId || '', ismsData.isIsoScope || false);
+      if (!ismsResult.success) {
+        Logger.log('ISMS 分類儲存失敗（盤點結果已成功）: ' + ismsResult.error);
+      }
     }
   }
 
@@ -8210,10 +8261,19 @@ function markBatchInventoryWithIsms(assetResults) {
   // 先執行批次盤點標記
   const inventoryResult = markBatchInventoryInActiveSessions(inventoryResults);
 
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const currentUserEmail = Session.getActiveUser().getEmail();
+  const isAdmin = checkAdminPermissions();
+  const ismsAccess = getIsmsInventoryAccess_(ss, currentUserEmail, isAdmin);
+
   // 處理 ISMS 分類
   for (let i = 0; i < assetResults.length; i++) {
     var item = assetResults[i];
     if (item.ismsData && (item.ismsData.isItAsset !== undefined)) {
+      if (!ismsAccess.canUseIsmsInventory) {
+        Logger.log('使用者無 ISMS 盤點權限，已忽略批次 ISMS 資料: ' + item.assetId);
+        continue;
+      }
       var ismsResult = saveIsmsClassification(item.assetId, item.ismsData.isItAsset, item.ismsData.ismsAssetId || '', item.ismsData.isIsoScope || false);
       if (!ismsResult.success) {
         Logger.log('批次 ISMS 分類儲存失敗 (' + item.assetId + '): ' + ismsResult.error);
