@@ -1880,10 +1880,18 @@
             { label: INVENTORY_STATUS_LABELS.OLD, color: 'amber', icon: 'fa-solid fa-clock-rotate-left' }
         ];
 
+        const normalizeInventoryInitialResult = (value) => {
+            const normalized = String(value || '').trim();
+            const allowedResults = new Set(Object.values(INVENTORY_STATUS_LABELS));
+            return allowedResults.has(normalized)
+                ? normalized
+                : INVENTORY_STATUS_LABELS.NORMAL;
+        };
+
         const createInventoryFormDefaults = ({ asset, isBatch = false, initialResult = INVENTORY_STATUS_LABELS.NORMAL }) => {
             const isItAsset = !isBatch && !!asset && String(asset.isItAsset || '').trim() === '是';
             return {
-                result: initialResult || INVENTORY_STATUS_LABELS.NORMAL,
+                result: normalizeInventoryInitialResult(initialResult),
                 remarks: '',
                 ismsExpanded: isItAsset,
                 isItAsset: isItAsset,
@@ -4903,9 +4911,9 @@
             });
 
             useEffect(() => {
-                setInventoryInitialResult(INVENTORY_STATUS_LABELS.NORMAL);
+                setInventoryInitialResult(normalizeInventoryInitialResult(inventoryStatusLabel));
                 setPanelView(hasInventoryTask ? 'inventory' : 'actions');
-            }, [asset?.assetId, hasInventoryTask]);
+            }, [asset?.assetId, hasInventoryTask, inventoryStatusLabel]);
 
             const openInventorySettings = useCallback((status = INVENTORY_STATUS_LABELS.NORMAL) => {
                 if (!hasAsset) return;
@@ -4917,7 +4925,7 @@
                     }
                     return;
                 }
-                setInventoryInitialResult(status);
+                setInventoryInitialResult(normalizeInventoryInitialResult(status));
                 setPanelView('inventory');
             }, [hasAsset, hasInventoryTask]);
 
@@ -10693,7 +10701,7 @@
         };
 
         // ========== 盤點確認 Modal（單筆/批次共用，含 ISMS 資訊資產分類）==========
-            const InventoryConfirmModal = ({ asset, assetIds, isBatch, sessionCount, submitMode = 'submit', onQueue, onClose, onSuccess, ismsAssets: ismsAssetsProp, ismsEnabled: ismsEnabledProp }) => {
+            const InventoryConfirmModal = ({ asset, assetIds, isBatch, sessionCount, submitMode = 'submit', initialResult = INVENTORY_STATUS_LABELS.NORMAL, onQueue, onClose, onSuccess, ismsAssets: ismsAssetsProp, ismsEnabled: ismsEnabledProp }) => {
             const [isSubmitting, setIsSubmitting] = useState(false);
             const [isResetting, setIsResetting] = useState(false);
             const normalizedSessionCount = typeof sessionCount === 'number' ? sessionCount : 0;
@@ -10704,7 +10712,8 @@
                 asset,
                 isBatch,
                 ismsAssets: ismsAssetsList,
-                ismsEnabled: ismsFeatureEnabled
+                ismsEnabled: ismsFeatureEnabled,
+                initialResult: initialResult
             });
             const {
                 result,
@@ -11055,6 +11064,7 @@
             const [currentInventorySessionId, setCurrentInventorySessionId] = useState(null);
             const [showInventoryModal, setShowInventoryModal] = useState(false);
             const [inventoryModalAsset, setInventoryModalAsset] = useState(null); // 單筆盤點
+            const [inventoryModalInitialResult, setInventoryModalInitialResult] = useState(INVENTORY_STATUS_LABELS.NORMAL);
             const [inventoryModalSessionCount, setInventoryModalSessionCount] = useState(0);
             const [showBatchInventoryModal, setShowBatchInventoryModal] = useState(false);
             const [selectedInventoryAssetIds, setSelectedInventoryAssetIds] = useState([]);
@@ -13403,7 +13413,9 @@
                     alert('此資產目前沒有進行中的盤點會話');
                     return;
                 }
+                const currentInventoryStatus = normalizeInventoryInitialResult(resolveInventoryStatusLabel(asset.assetId));
                 setInventoryModalSessionCount(getAssetInventorySessionCount(asset.assetId));
+                setInventoryModalInitialResult(currentInventoryStatus);
                 setInventoryModalAsset(asset);
                 setShowInventoryModal(true);
             };
@@ -14343,11 +14355,13 @@
                             asset={inventoryModalAsset}
                             isBatch={false}
                             sessionCount={inventoryModalSessionCount}
+                            initialResult={inventoryModalInitialResult}
                             submitMode={isAdvancedMode ? 'queue' : 'submit'}
                             onQueue={handleInventoryQueue}
                             onClose={() => {
                                 setShowInventoryModal(false);
                                 setInventoryModalAsset(null);
+                                setInventoryModalInitialResult(INVENTORY_STATUS_LABELS.NORMAL);
                                 setInventoryModalSessionCount(0);
                             }}
                             onSuccess={handleInventorySuccess}
