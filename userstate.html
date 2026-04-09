@@ -4908,7 +4908,7 @@
                 setInventoryInitialResult(INVENTORY_STATUS_LABELS.NORMAL);
             }, [asset?.assetId]);
 
-            const openInventorySettings = useCallback(async (status = INVENTORY_STATUS_LABELS.NORMAL) => {
+            const openInventorySettings = useCallback((status = INVENTORY_STATUS_LABELS.NORMAL) => {
                 if (!hasAsset) return;
                 if (!hasInventoryTask) {
                     if (typeof window.BatchList_showToast === 'function') {
@@ -4918,22 +4918,22 @@
                     }
                     return;
                 }
-                setIsPreparingInventory(true);
-                try {
-                    if (typeof onPrepareInventory === 'function') {
-                        await onPrepareInventory(asset.assetId);
-                    }
-                    setInventoryInitialResult(status);
-                    setPanelView('inventory');
-                } catch (error) {
-                    const message = error?.message || '載入最新盤點資料失敗';
-                    if (typeof window.BatchList_showToast === 'function') {
-                        window.BatchList_showToast(message, 'error');
-                    } else {
-                        alert(message);
-                    }
-                } finally {
-                    setIsPreparingInventory(false);
+                setInventoryInitialResult(status);
+                setPanelView('inventory');
+                if (typeof onPrepareInventory === 'function') {
+                    setIsPreparingInventory(true);
+                    Promise.resolve(onPrepareInventory(asset.assetId))
+                        .catch((error) => {
+                            const message = error?.message || '同步最新盤點資料失敗';
+                            if (typeof window.BatchList_showToast === 'function') {
+                                window.BatchList_showToast(message, 'warning');
+                            } else {
+                                alert(message);
+                            }
+                        })
+                        .finally(() => {
+                            setIsPreparingInventory(false);
+                        });
                 }
             }, [asset?.assetId, hasAsset, hasInventoryTask, onPrepareInventory]);
 
@@ -5006,7 +5006,9 @@
                         {panelView === 'inventory' ? (
                             <div className="action-panel__inventory-intro">
                                 <div className="action-panel__inventory-note">
-                                    加入清單後，送出時會同步更新所有進行中的盤點會話；若啟用 ISMS，也可一併設定資訊資產分類。
+                                    {isPreparingInventory
+                                        ? '已先開啟盤點設定，正在背景同步最新的盤點與 ISMS 狀態...'
+                                        : '加入清單後，送出時會同步更新所有進行中的盤點會話；若啟用 ISMS，也可一併設定資訊資產分類。'}
                                 </div>
                                 <InventoryFormFields
                                     form={inventoryForm}

@@ -763,21 +763,34 @@ function getUserStateData(forceUserScope) {
     }
   }
 
-  const results = filteredData.map(asset => ({
-    assetId: asset.assetId,
-    assetName: asset.assetName,
-    modelBrand: asset.modelBrand || '',
-    leader: asset.leaderName,
-    leaderEmail: asset.leaderEmail, // ✨ Add leaderEmail
-    userEmail: asset.userEmail || '',
-    location: asset.location,
-    status: asset.assetStatus,
-    category: asset.assetCategory,
-    userName: asset.userName || '無', // 使用者名稱，物品總表顯示「無」
-    sourceSheet: asset.sourceSheet,
-    isItAsset: asset.isItAsset || '',  // ✨ ISMS：是否為資訊資產（X欄）
-    isIsoScope: asset.isIsoScope || '' // ✨ ISMS：是否在ISO驗證範圍內（Z欄）
-  }));
+  const assetIds = filteredData
+    .map(asset => String(asset.assetId || '').trim())
+    .filter(Boolean);
+  const ismsMappingResult = getIsmsMappingForAssets(assetIds);
+  const ismsMappings = ismsMappingResult && ismsMappingResult.success && ismsMappingResult.mappings
+    ? ismsMappingResult.mappings
+    : {};
+
+  const results = filteredData.map(asset => {
+    const assetId = String(asset.assetId || '').trim();
+    const mapping = ismsMappings[assetId] || {};
+    return {
+      assetId: asset.assetId,
+      assetName: asset.assetName,
+      modelBrand: asset.modelBrand || '',
+      leader: asset.leaderName,
+      leaderEmail: asset.leaderEmail, // ✨ Add leaderEmail
+      userEmail: asset.userEmail || '',
+      location: asset.location,
+      status: asset.assetStatus,
+      category: asset.assetCategory,
+      userName: asset.userName || '無', // 使用者名稱，物品總表顯示「無」
+      sourceSheet: asset.sourceSheet,
+      isItAsset: asset.isItAsset || '',  // ✨ ISMS：是否為資訊資產（X欄）
+      isIsoScope: asset.isIsoScope || '', // ✨ ISMS：是否在ISO驗證範圍內（Z欄）
+      ismsAssetId: String(mapping.ismsAssetId || '')
+    };
+  });
 
   return {
     isAdmin: isAdmin,
@@ -5523,12 +5536,16 @@ function getAssetInventoryFormData(assetId, forceUserScope) {
     const currentUserEmail = Session.getActiveUser().getEmail();
     const isAdmin = checkAdminPermissions();
     const useAdminScope = isAdmin && !forceUserScope;
-    const allAssets = getAllAssets();
-    const asset = allAssets.find(item => String(item.assetId || '').trim() === normalizedAssetId);
-
-    if (!asset) {
+    const location = findAssetLocation(normalizedAssetId);
+    if (!location) {
       return { success: false, error: '找不到資產資料' };
     }
+
+    const indices = location.sheetName === PROPERTY_MASTER_SHEET_NAME
+      ? PROPERTY_COLUMN_INDICES
+      : ITEM_COLUMN_INDICES;
+    const rowValues = location.sheet.getRange(location.rowIndex, 1, 1, location.sheet.getLastColumn()).getValues()[0];
+    const asset = mapRowToAssetObject(rowValues, indices, location.sheetName);
 
     if (!useAdminScope) {
       const groupEmails = getGroupMemberEmails(currentUserEmail).map(email => String(email || '').toLowerCase());
