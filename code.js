@@ -53,7 +53,8 @@ const PROPERTY_COLUMN_INDICES = {
   IS_ACTUALLY_COMPUTER: 25, // Y欄: 是否為電腦 (原X欄)
   IS_ISO_SCOPE: 26,     // Z欄: 是否在ISO驗證範圍內
   NOTES: 30,            // AD欄: 備註
-  DEFAULT_GROUP: 31     // AE欄: 預設組別
+  DEFAULT_GROUP: 31,    // AE欄: 預設組別
+  ISMS_ASSET_ID: 32     // AF欄: 對應資訊資產編號
 };
 
 const ITEM_COLUMN_INDICES = {
@@ -83,7 +84,8 @@ const ITEM_COLUMN_INDICES = {
   IS_ACTUALLY_COMPUTER: 25, // Y欄 是否為電腦
   IS_ISO_SCOPE: 26,     // Z欄 是否在ISO驗證範圍內
   NOTES: 30,            // AD欄: 備註
-  DEFAULT_GROUP: 31     // AE欄: 預設組別
+  DEFAULT_GROUP: 31,    // AE欄: 預設組別
+  ISMS_ASSET_ID: 32     // AF欄: 對應資訊資產編號
 };
 
 
@@ -240,6 +242,7 @@ function mapRowToAssetObject(row, indices, sourceSheet) {
       isItAsset: row[indices.IS_IT_ASSET - 1],
       isActuallyComputer: row[indices.IS_ACTUALLY_COMPUTER - 1],
       isIsoScope: row[indices.IS_ISO_SCOPE - 1],
+      ismsAssetId: indices.ISMS_ASSET_ID ? row[indices.ISMS_ASSET_ID - 1] : '',
       defaultGroup: indices.DEFAULT_GROUP ? row[indices.DEFAULT_GROUP - 1] : null,
       sourceSheet: sourceSheet
     };
@@ -788,7 +791,7 @@ function getUserStateData(forceUserScope) {
       sourceSheet: asset.sourceSheet,
       isItAsset: asset.isItAsset || '',  // ✨ ISMS：是否為資訊資產（X欄）
       isIsoScope: asset.isIsoScope || '', // ✨ ISMS：是否在ISO驗證範圍內（Z欄）
-      ismsAssetId: String(mapping.ismsAssetId || '')
+      ismsAssetId: String(mapping.ismsAssetId || asset.ismsAssetId || '')
     };
   });
 
@@ -8051,7 +8054,7 @@ function saveIsmsClassification(assetId, isItAsset, ismsAssetId, isIsoScope) {
     const timestamp = new Date().toISOString();
     const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
 
-    // 1. 更新主試算表的 IS_IT_ASSET 欄位
+    // 1. 更新主試算表的 IS_IT_ASSET / IS_ISO_SCOPE / ISMS_ASSET_ID 欄位
     const location = findAssetLocation(assetId);
     if (location) {
       const indices = location.sheetName === PROPERTY_MASTER_SHEET_NAME
@@ -8062,6 +8065,11 @@ function saveIsmsClassification(assetId, isItAsset, ismsAssetId, isIsoScope) {
       if (indices.IS_ISO_SCOPE) {
         location.sheet.getRange(location.rowIndex, indices.IS_ISO_SCOPE).setValue(
           (isItAsset && isIsoScope) ? '是' : ''
+        );
+      }
+      if (indices.ISMS_ASSET_ID) {
+        location.sheet.getRange(location.rowIndex, indices.ISMS_ASSET_ID).setValue(
+          isItAsset ? String(ismsAssetId || '').trim() : ''
         );
       }
     }
