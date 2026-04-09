@@ -5508,6 +5508,70 @@ function getAssetStatusDetail(assetId, forceUserScope) {
 }
 
 /**
+ * 取得單筆資產最新的盤點/ISMS 表單資料
+ * @param {string} assetId - 資產編號
+ * @param {boolean} forceUserScope - 是否強制使用一般使用者視角
+ * @returns {Object} { success, asset?, error? }
+ */
+function getAssetInventoryFormData(assetId, forceUserScope) {
+  try {
+    const normalizedAssetId = String(assetId || '').trim();
+    if (!normalizedAssetId) {
+      return { success: false, error: '缺少資產編號' };
+    }
+
+    const currentUserEmail = Session.getActiveUser().getEmail();
+    const isAdmin = checkAdminPermissions();
+    const useAdminScope = isAdmin && !forceUserScope;
+    const allAssets = getAllAssets();
+    const asset = allAssets.find(item => String(item.assetId || '').trim() === normalizedAssetId);
+
+    if (!asset) {
+      return { success: false, error: '找不到資產資料' };
+    }
+
+    if (!useAdminScope) {
+      const groupEmails = getGroupMemberEmails(currentUserEmail).map(email => String(email || '').toLowerCase());
+      const leaderEmail = String(asset.leaderEmail || '').toLowerCase();
+      const userEmail = String(asset.userEmail || '').toLowerCase();
+      const hasAccess = groupEmails.includes(leaderEmail) || (userEmail && groupEmails.includes(userEmail));
+      if (!hasAccess) {
+        return { success: false, error: '權限不足，無法查看此資產資料。' };
+      }
+    }
+
+    let ismsAssetId = '';
+    const mappingResult = getIsmsMappingForAssets([normalizedAssetId]);
+    if (mappingResult && mappingResult.success && mappingResult.mappings && mappingResult.mappings[normalizedAssetId]) {
+      ismsAssetId = String(mappingResult.mappings[normalizedAssetId].ismsAssetId || '').trim();
+    }
+
+    return {
+      success: true,
+      asset: {
+        assetId: normalizedAssetId,
+        assetName: String(asset.assetName || ''),
+        modelBrand: String(asset.modelBrand || ''),
+        leader: String(asset.leaderName || ''),
+        leaderEmail: String(asset.leaderEmail || ''),
+        userName: String(asset.userName || '無'),
+        userEmail: String(asset.userEmail || ''),
+        location: String(asset.location || ''),
+        status: String(asset.assetStatus || ''),
+        category: String(asset.assetCategory || ''),
+        sourceSheet: String(asset.sourceSheet || ''),
+        isItAsset: String(asset.isItAsset || ''),
+        isIsoScope: String(asset.isIsoScope || ''),
+        ismsAssetId: ismsAssetId
+      }
+    };
+  } catch (e) {
+    Logger.log('getAssetInventoryFormData 失敗: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
  * [供 printScrap.html 呼叫] 獲取已列印的報廢文件歷史紀錄
  * @param {string} assetCategory - 財產類別
  * @returns {Array<Object>} 文件列表 { url, applicant, date, count }

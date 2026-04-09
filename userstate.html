@@ -4889,10 +4889,11 @@
             </div>
         );
 
-        const ActionPanel = ({ asset, displayMode = 'modal', hasInventoryTask, inventoryStatusLabel, ismsAssets = [], ismsEnabled = false, onSelectAction, onSelectInventory, onClose }) => {
+        const ActionPanel = ({ asset, displayMode = 'modal', hasInventoryTask, inventoryStatusLabel, ismsAssets = [], ismsEnabled = false, onPrepareInventory, onSelectAction, onSelectInventory, onClose }) => {
             const hasAsset = Boolean(asset && asset.assetId);
             const [panelView, setPanelView] = useState('actions');
             const [inventoryInitialResult, setInventoryInitialResult] = useState(INVENTORY_STATUS_LABELS.NORMAL);
+            const [isPreparingInventory, setIsPreparingInventory] = useState(false);
             const inventoryForm = useInventoryFormState({
                 asset,
                 isBatch: false,
@@ -4907,7 +4908,7 @@
                 setInventoryInitialResult(INVENTORY_STATUS_LABELS.NORMAL);
             }, [asset?.assetId]);
 
-            const openInventorySettings = useCallback((status = INVENTORY_STATUS_LABELS.NORMAL) => {
+            const openInventorySettings = useCallback(async (status = INVENTORY_STATUS_LABELS.NORMAL) => {
                 if (!hasAsset) return;
                 if (!hasInventoryTask) {
                     if (typeof window.BatchList_showToast === 'function') {
@@ -4917,9 +4918,24 @@
                     }
                     return;
                 }
-                setInventoryInitialResult(status);
-                setPanelView('inventory');
-            }, [hasAsset, hasInventoryTask]);
+                setIsPreparingInventory(true);
+                try {
+                    if (typeof onPrepareInventory === 'function') {
+                        await onPrepareInventory(asset.assetId);
+                    }
+                    setInventoryInitialResult(status);
+                    setPanelView('inventory');
+                } catch (error) {
+                    const message = error?.message || '載入最新盤點資料失敗';
+                    if (typeof window.BatchList_showToast === 'function') {
+                        window.BatchList_showToast(message, 'error');
+                    } else {
+                        alert(message);
+                    }
+                } finally {
+                    setIsPreparingInventory(false);
+                }
+            }, [asset?.assetId, hasAsset, hasInventoryTask, onPrepareInventory]);
 
             const handleInventorySubmit = useCallback(() => {
                 if (!hasAsset || typeof onSelectInventory !== 'function') return;
@@ -5040,7 +5056,7 @@
                                                     key={label}
                                                     type="button"
                                                     className={`action-panel__chip action-panel__chip--${color === 'green' ? 'normal' : color === 'red' ? 'lost' : color === 'orange' ? 'damaged' : 'old'}`}
-                                                    disabled={!hasAsset}
+                                                    disabled={!hasAsset || isPreparingInventory}
                                                     onClick={() => openInventorySettings(label)}
                                                 >
                                                     <i className={icon}></i>
@@ -5075,7 +5091,9 @@
                         )}
                     </div>
                     <div className="action-panel__hint">
-                        {panelView === 'inventory' ? '設定完成後加入清單；可帶入備註與 ISMS 分類。' : '點擊上方按鈕將資產加入進階批次處理清單'}
+                        {panelView === 'inventory'
+                            ? '設定完成後加入清單；可帶入備註與 ISMS 分類。'
+                            : (isPreparingInventory ? '正在同步最新的盤點/ISMS 狀態...' : '點擊上方按鈕將資產加入進階批次處理清單')}
                     </div>
                 </div>
             );
@@ -13491,6 +13509,53 @@
                 }
             }, [inventoryModalAsset, resolveAssetDetail]);
 
+            const mergeLatestAssetSnapshot = useCallback((latestAsset) => {
+                if (!latestAsset || !latestAsset.assetId) return latestAsset;
+                setActionPanelState(prev => {
+                    if (!prev || String(prev.assetId || '') !== String(latestAsset.assetId || '')) {
+                        return prev;
+                    }
+                    return {
+                        ...prev,
+                        asset: {
+                            ...(prev.asset || {}),
+                            ...latestAsset
+                        }
+                    };
+                });
+                setAllAssets(prev => prev.map(asset => {
+                    if (String(asset.assetId || '') !== String(latestAsset.assetId || '')) {
+                        return asset;
+                    }
+                    return {
+                        ...asset,
+                        ...latestAsset,
+                        searchText: [
+                            latestAsset.assetId,
+                            latestAsset.assetName,
+                            latestAsset.leader,
+                            latestAsset.location
+                        ].filter(Boolean).join(' ').toLowerCase()
+                    };
+                }));
+                return latestAsset;
+            }, []);
+
+            const prepareLatestInventoryAsset = useCallback((assetId) => (
+                new Promise((resolve, reject) => {
+                    google.script.run
+                        .withSuccessHandler((response) => {
+                            if (!response || response.error || response.success === false || !response.asset) {
+                                reject(new Error(response?.error || '載入最新盤點資料失敗'));
+                                return;
+                            }
+                            resolve(mergeLatestAssetSnapshot(response.asset));
+                        })
+                        .withFailureHandler(reject)
+                        .getAssetInventoryFormData(assetId, viewMode === 'user');
+                })
+            ), [mergeLatestAssetSnapshot, viewMode]);
+
             // ========== 批次操作處理函數 ==========
             const handleBatchTransfer = () => {
                 if (!transferOptions) {
@@ -14073,6 +14138,7 @@
                                     inventoryStatusLabel={actionPanelState.assetId ? resolveInventoryStatusLabel(actionPanelState.assetId) : '無盤點任務'}
                                     ismsAssets={ismsAssets}
                                     ismsEnabled={ismsEnabled}
+                                    onPrepareInventory={prepareLatestInventoryAsset}
                                     onSelectAction={(actionType) => openQueueActionModal(actionType)}
                                     onSelectInventory={handleInventoryQueue}
                                     onClose={closeActionPanel}
