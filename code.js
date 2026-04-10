@@ -830,13 +830,18 @@ function getUserStateData(forceUserScope) {
   let currentUserName = currentUserEmail.split('@')[0]; // 預設使用 email 前綴
   const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const keeperEmailSheet = ss.getSheetByName(KEEPER_EMAIL_MAP_SHEET_NAME);
+  const userNameToGroupMap = {};
   if (keeperEmailSheet && keeperEmailSheet.getLastRow() > 1) {
-    const keeperData = keeperEmailSheet.getRange(2, 1, keeperEmailSheet.getLastRow() - 1, 2).getValues();
+    const keeperData = keeperEmailSheet.getRange(2, 1, keeperEmailSheet.getLastRow() - 1, 7).getValues();
     for (let row of keeperData) {
+      const name = row[0] ? String(row[0]).trim() : '';
       const email = row[1];
+      const groupName = row[6] ? String(row[6]).trim() : '';
       if (email && String(email).toLowerCase() === normalizedCurrentEmail) {
-        currentUserName = row[0]; // 找到對應的姓名
-        break;
+        currentUserName = name || currentUserName; // 找到對應的姓名
+      }
+      if (name && groupName && !userNameToGroupMap[name]) {
+        userNameToGroupMap[name] = groupName;
       }
     }
   }
@@ -880,6 +885,9 @@ function getUserStateData(forceUserScope) {
   const results = filteredData.map(asset => {
     const assetId = String(asset.assetId || '').trim();
     const mapping = ismsMappings[assetId] || {};
+    const defaultGroup = asset.defaultGroup ? String(asset.defaultGroup).trim() : '';
+    const mappedUserGroup = asset.userName ? (userNameToGroupMap[String(asset.userName).trim()] || '') : '';
+    const groupName = defaultGroup || mappedUserGroup || '未分組';
     return {
       assetId: asset.assetId,
       assetName: asset.assetName,
@@ -890,6 +898,7 @@ function getUserStateData(forceUserScope) {
       location: asset.location,
       status: asset.assetStatus,
       category: asset.assetCategory,
+      group: groupName,
       userName: asset.userName || '無', // 使用者名稱，物品總表顯示「無」
       sourceSheet: asset.sourceSheet,
       isItAsset: asset.isItAsset || '',  // ✨ ISMS：是否為資訊資產（X欄）
