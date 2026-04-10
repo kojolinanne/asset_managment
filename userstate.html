@@ -540,6 +540,14 @@
             gap: 12px;
         }
 
+        .inventory-history-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
         .inventory-history-count-number {
             font-size: 18px;
             font-weight: 700;
@@ -564,13 +572,45 @@
             justify-content: center;
         }
 
+        .inventory-history-export {
+            border: 1px solid #dbeafe;
+            background: #eff6ff;
+            color: #1d4ed8;
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            height: 32px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .inventory-history-export:hover {
+            background: #dbeafe;
+            border-color: #93c5fd;
+        }
+
+        .inventory-history-export--csv {
+            border-color: #d1fae5;
+            background: #ecfdf5;
+            color: #047857;
+        }
+
+        .inventory-history-export--csv:hover {
+            background: #d1fae5;
+            border-color: #86efac;
+        }
+
         .inventory-history-delete:hover {
             background: #f8fafc;
             color: #dc2626;
             border-color: #fecaca;
         }
 
-        .inventory-history-delete:disabled {
+        .inventory-history-delete:disabled,
+        .inventory-history-export:disabled {
             opacity: 0.6;
             cursor: not-allowed;
         }
@@ -3358,6 +3398,7 @@
             const [deleteMessage, setDeleteMessage] = useState('');
             const [deleteError, setDeleteError] = useState('');
             const [deletingSessionId, setDeletingSessionId] = useState('');
+            const [exportingSessionKey, setExportingSessionKey] = useState('');
             const [locationDropdownOpen, setLocationDropdownOpen] = useState(false);
             const [keeperDropdownOpen, setKeeperDropdownOpen] = useState(false);
             const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -3687,6 +3728,106 @@
                     .deleteInventorySession(sessionId);
             };
 
+            const buildInventoryExportTimestamp = useCallback(() => {
+                const now = new Date();
+                const pad = (value) => String(value).padStart(2, '0');
+                return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+            }, []);
+
+            const buildInventoryExportFilename = useCallback((sessionId, timestamp, extension) => (
+                `inventory_${sessionId}_${timestamp}.${extension}`
+            ), []);
+
+            const escapeCsvValue = useCallback((value) => {
+                if (value === null || value === undefined) return '';
+                const text = String(value);
+                const escaped = text.replace(/"/g, '""');
+                return /[",\r\n]/.test(escaped) ? `"${escaped}"` : escaped;
+            }, []);
+
+            const downloadExportBlob = useCallback((content, filename, mimeType) => {
+                const blob = new Blob([content], { type: mimeType });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(() => URL.revokeObjectURL(url), 0);
+            }, []);
+
+            const buildInventoryColumnWidths = useCallback((rows) => {
+                const columnCount = rows.reduce((max, row) => Math.max(max, row.length), 0);
+                return Array.from({ length: columnCount }, (_, columnIndex) => {
+                    let maxLength = 0;
+                    rows.forEach(row => {
+                        const cell = row[columnIndex];
+                        if (cell === null || cell === undefined) return;
+                        const length = String(cell).length;
+                        if (length > maxLength) {
+                            maxLength = length;
+                        }
+                    });
+                    return { wch: Math.min(32, Math.max(8, Math.round(maxLength * 1.5))) };
+                });
+            }, []);
+
+            const handleExportInventorySession = useCallback(async (sessionId, format) => {
+                if (!sessionId) return;
+                if (format === 'excel' && !window.XLSX) {
+                    alert('Excel 匯出元件尚未載入，請重新整理後再試。');
+                    return;
+                }
+
+                const exportKey = `${sessionId}:${format}`;
+                setExportingSessionKey(exportKey);
+                if (typeof showToastProgress === 'function') {
+                    showToastProgress(`正在匯出 ${sessionId} ${format === 'excel' ? 'Excel' : 'CSV'}...`);
+                }
+
+                try {
+                    const response = await runScript('getInventoryExportData', sessionId);
+                    const headers = Array.isArray(response?.headers) ? response.headers : [];
+                    const rows = Array.isArray(response?.rows) ? response.rows : [];
+                    if (headers.length === 0 || rows.length === 0) {
+                        if (typeof hideToastProgress === 'function') {
+                            hideToastProgress('沒有可匯出的資料', 300);
+                        }
+                        alert('此盤點會話沒有可匯出的資料');
+                        return;
+                    }
+
+                    const timestamp = buildInventoryExportTimestamp();
+                    const exportSessionId = response?.inventoryId || sessionId;
+                    const sheetRows = [headers, ...rows];
+                    if (format === 'excel') {
+                        const workbook = window.XLSX.utils.book_new();
+                        const sheet = window.XLSX.utils.aoa_to_sheet(sheetRows);
+                        sheet['!cols'] = buildInventoryColumnWidths(sheetRows);
+                        window.XLSX.utils.book_append_sheet(workbook, sheet, '盤點資料');
+                        window.XLSX.writeFile(workbook, buildInventoryExportFilename(exportSessionId, timestamp, 'xlsx'));
+                    } else {
+                        const csvContent = sheetRows
+                            .map(row => row.map(escapeCsvValue).join(','))
+                            .join('\r\n');
+                        downloadExportBlob(`\uFEFF${csvContent}`, buildInventoryExportFilename(exportSessionId, timestamp, 'csv'), 'text/csv;charset=utf-8;');
+                    }
+
+                    if (typeof hideToastProgress === 'function') {
+                        hideToastProgress('匯出完成！', 300);
+                    }
+                } catch (error) {
+                    console.error('盤點匯出失敗：', error);
+                    if (typeof hideToastProgress === 'function') {
+                        hideToastProgress('匯出失敗', 300);
+                    }
+                    alert('匯出失敗：' + (error?.message || error));
+                } finally {
+                    setExportingSessionKey('');
+                }
+            }, [buildInventoryColumnWidths, buildInventoryExportFilename, buildInventoryExportTimestamp, downloadExportBlob, escapeCsvValue, runScript]);
+
             const renderHistoryContent = () => {
                 if (isHistoryLoading) {
                     return (
@@ -3732,6 +3873,9 @@
                         : (personName || '未指定');
                     const itemClass = `inventory-history-item${isCompleted ? ' is-completed' : ''}`;
                     const isDeleting = deletingSessionId === sessionId;
+                    const isExportingExcel = exportingSessionKey === `${sessionId}:excel`;
+                    const isExportingCsv = exportingSessionKey === `${sessionId}:csv`;
+                    const isExportingAny = isExportingExcel || isExportingCsv;
 
                     return (
                         <div key={sessionId} className={itemClass}>
@@ -3745,11 +3889,41 @@
                                         <div className="inventory-history-count-number">{progressDisplay}</div>
                                         <div className="inventory-history-count-label">已盤點/總計</div>
                                     </div>
+                                    <div className="inventory-history-actions">
+                                        <button
+                                            type="button"
+                                            className="inventory-history-export"
+                                            onClick={() => handleExportInventorySession(sessionId, 'excel')}
+                                            disabled={isExportingAny || isDeleting}
+                                            title="匯出 Excel"
+                                        >
+                                            {isExportingExcel ? (
+                                                <i className="fa-solid fa-spinner fa-spin"></i>
+                                            ) : (
+                                                <i className="fa-solid fa-file-excel"></i>
+                                            )}
+                                            Excel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="inventory-history-export inventory-history-export--csv"
+                                            onClick={() => handleExportInventorySession(sessionId, 'csv')}
+                                            disabled={isExportingAny || isDeleting}
+                                            title="匯出 CSV"
+                                        >
+                                            {isExportingCsv ? (
+                                                <i className="fa-solid fa-spinner fa-spin"></i>
+                                            ) : (
+                                                <i className="fa-solid fa-file-csv"></i>
+                                            )}
+                                            CSV
+                                        </button>
+                                    </div>
                                     <button
                                         type="button"
                                         className="inventory-history-delete"
                                         onClick={() => handleDeleteSession(sessionId)}
-                                        disabled={isDeleting}
+                                        disabled={isDeleting || isExportingAny}
                                         title="刪除盤點會話"
                                     >
                                         {isDeleting ? (

@@ -278,9 +278,15 @@ function createEmptyInventoryAssetContext_(assetId) {
   return {
     assetId: String(assetId || '').trim(),
     assetName: '',
+    assetAlias: '',
     keeperName: '',
     userName: '',
+    modelBrand: '',
+    unit: '',
+    purchaseDate: '',
+    useLife: '',
     location: '',
+    accessory: '',
     originalStatus: '',
     status: '',
     isItAsset: '',
@@ -313,9 +319,15 @@ function buildInventoryAssetContextMap_(assetIds) {
     contextMap[assetId] = {
       assetId: assetId,
       assetName: String(asset.assetName || ''),
+      assetAlias: String(asset.assetAlias || ''),
       keeperName: String(asset.leaderName || ''),
       userName: String(asset.userName || ''),
+      modelBrand: String(asset.modelBrand || ''),
+      unit: String(asset.unit || ''),
+      purchaseDate: asset.purchaseDate || '',
+      useLife: String(asset.useLife || ''),
       location: String(asset.location || ''),
+      accessory: String(asset.accessory || ''),
       originalStatus: String(asset.assetStatus || ''),
       status: String(asset.assetStatus || ''),
       isItAsset: String(asset.isItAsset || ''),
@@ -7009,9 +7021,15 @@ function getInventoryDetails(inventoryId) {
           rowIndex: i + 2,
           assetId: assetId,
           assetName: assetContext.assetName,
+          assetAlias: assetContext.assetAlias,
           keeperName: assetContext.keeperName,
           userName: assetContext.userName,
+          modelBrand: assetContext.modelBrand,
+          unit: assetContext.unit,
+          purchaseDate: assetContext.purchaseDate,
+          useLife: assetContext.useLife,
           location: assetContext.location,
+          accessory: assetContext.accessory,
           originalStatus: assetContext.originalStatus,
           inventoryResult: row[ID_INVENTORY_RESULT_COLUMN_INDEX - 1],
           remarks: row[ID_REMARKS_COLUMN_INDEX - 1],
@@ -7019,7 +7037,8 @@ function getInventoryDetails(inventoryId) {
           verifiedBy: row[ID_VERIFIED_BY_COLUMN_INDEX - 1],
           assignedUser: row[ID_ASSIGNED_USER_COLUMN_INDEX - 1],
           isItAsset: assetContext.isItAsset,
-          ismsAssetId: assetContext.ismsAssetId
+          ismsAssetId: assetContext.ismsAssetId,
+          sourceSheet: assetContext.sourceSheet
         });
       }
     }
@@ -7046,6 +7065,184 @@ function getInventoryAssigneeNameMap() {
     });
   }
   return emailToNameMap;
+}
+
+function getInventoryExportHeaders_() {
+  return [
+    '項次',
+    '財產區分',
+    '編號(含分號)/名稱',
+    '別名',
+    '型式/廠牌',
+    '大陸製造',
+    '數量單位',
+    '取得日期／購置日期',
+    '使用年限',
+    '存置地點',
+    '使用人／使用單位',
+    '已達使用年限',
+    '附屬設備',
+    '盤點結果',
+    '備註',
+    '盤點時間',
+    '盤點人',
+    '指派對象'
+  ];
+}
+
+function formatInventoryExportDate_(value) {
+  if (!value) return '';
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy/MM/dd');
+  }
+  const parsed = new Date(value);
+  if (!isNaN(parsed.getTime())) {
+    return Utilities.formatDate(parsed, Session.getScriptTimeZone(), 'yyyy/MM/dd');
+  }
+  return String(value || '');
+}
+
+function getInventoryAssetTypeLabel_(sourceSheet) {
+  return String(sourceSheet || '').trim() === ITEM_MASTER_SHEET_NAME ? '物品' : '財產';
+}
+
+function computeReachedUseLifeLabel_(purchaseDateValue, useLifeValue) {
+  if (!purchaseDateValue || useLifeValue === null || useLifeValue === undefined || useLifeValue === '') {
+    return '';
+  }
+
+  const purchaseDate = purchaseDateValue instanceof Date
+    ? new Date(purchaseDateValue.getTime())
+    : new Date(purchaseDateValue);
+  if (isNaN(purchaseDate.getTime())) {
+    return '';
+  }
+
+  const useLife = parseInt(String(useLifeValue).trim(), 10);
+  if (isNaN(useLife)) {
+    return '';
+  }
+
+  const expireDate = new Date(purchaseDate.getTime());
+  expireDate.setFullYear(expireDate.getFullYear() + useLife);
+  return expireDate.getTime() <= Date.now() ? '是' : '否';
+}
+
+function formatInventoryAssignedUserLabel_(assignedUser, emailToNameMap) {
+  const raw = String(assignedUser || '').trim();
+  if (!raw) return '';
+  if (!raw.includes('@')) return raw;
+
+  const normalizedEmail = raw.toLowerCase();
+  const displayName = emailToNameMap[normalizedEmail] || normalizedEmail.split('@')[0];
+  return `${displayName} (${normalizedEmail})`;
+}
+
+function canAccessInventorySession_(ss, inventoryId, currentUserEmail, isAdmin) {
+  if (isAdmin) return true;
+
+  const normalizedInventoryId = String(inventoryId || '').trim();
+  const normalizedCurrentEmail = String(currentUserEmail || '').toLowerCase().trim();
+  if (!normalizedInventoryId || !normalizedCurrentEmail) return false;
+
+  const inventoryLogSheet = ss.getSheetByName(INVENTORY_LOG_SHEET_NAME);
+  if (inventoryLogSheet && inventoryLogSheet.getLastRow() > 1) {
+    const logData = inventoryLogSheet.getRange(2, 1, inventoryLogSheet.getLastRow() - 1, inventoryLogSheet.getLastColumn()).getValues();
+    for (let i = 0; i < logData.length; i++) {
+      const row = logData[i];
+      if (String(row[IL_INVENTORY_ID_COLUMN_INDEX - 1] || '').trim() !== normalizedInventoryId) continue;
+      const ownerEmail = String(row[IL_INVENTORY_EMAIL_COLUMN_INDEX - 1] || '').toLowerCase().trim();
+      if (ownerEmail && ownerEmail === normalizedCurrentEmail) {
+        return true;
+      }
+      break;
+    }
+  }
+
+  const currentUserGroup = getInventoryUserGroup_(ss, normalizedCurrentEmail);
+  const inventoryDetailSheet = ss.getSheetByName(INVENTORY_DETAIL_SHEET_NAME);
+  if (!inventoryDetailSheet || inventoryDetailSheet.getLastRow() <= 1) {
+    return false;
+  }
+
+  const readCols = Math.max(inventoryDetailSheet.getLastColumn(), ID_ASSIGNED_USER_COLUMN_INDEX);
+  const detailData = inventoryDetailSheet.getRange(2, 1, inventoryDetailSheet.getLastRow() - 1, readCols).getValues();
+  for (let i = 0; i < detailData.length; i++) {
+    const row = detailData[i];
+    if (String(row[ID_INVENTORY_ID_COLUMN_INDEX - 1] || '').trim() !== normalizedInventoryId) continue;
+    const assignedUser = String(row[ID_ASSIGNED_USER_COLUMN_INDEX - 1] || '').trim();
+    if (!assignedUser) continue;
+    if (assignedUser.includes('@')) {
+      if (assignedUser.toLowerCase() === normalizedCurrentEmail) {
+        return true;
+      }
+    } else if (currentUserGroup && assignedUser === currentUserGroup) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function getInventoryExportData(inventoryId) {
+  try {
+    const normalizedInventoryId = String(inventoryId || '').trim();
+    if (!normalizedInventoryId) {
+      throw new Error('缺少盤點會話 ID');
+    }
+
+    const currentUserEmail = Session.getActiveUser().getEmail();
+    const normalizedCurrentEmail = String(currentUserEmail || '').toLowerCase().trim();
+    const isAdmin = checkAdminPermissions();
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+    if (!canAccessInventorySession_(ss, normalizedInventoryId, normalizedCurrentEmail, isAdmin)) {
+      throw new Error('權限不足：您無法匯出此盤點會話');
+    }
+
+    const details = getInventoryDetails(normalizedInventoryId);
+    const emailToNameMap = getInventoryAssigneeNameMap();
+    const headers = getInventoryExportHeaders_();
+    const rows = (Array.isArray(details) ? details : []).map((detail, index) => {
+      const assetId = String(detail?.assetId || '').trim();
+      const assetName = String(detail?.assetName || '').trim();
+      const idAndName = assetId && assetName
+        ? `${assetId}\n${assetName}`
+        : (assetId || assetName || '');
+      const userDisplay = String(detail?.userName || '').trim() || String(detail?.keeperName || '').trim();
+      const inventoryResult = String(detail?.inventoryResult || '').trim() || '未盤點';
+
+      return [
+        index + 1,
+        getInventoryAssetTypeLabel_(detail?.sourceSheet || ''),
+        idAndName,
+        String(detail?.assetAlias || '').trim(),
+        String(detail?.modelBrand || '').trim(),
+        '',
+        String(detail?.unit || '').trim(),
+        formatInventoryExportDate_(detail?.purchaseDate || ''),
+        String(detail?.useLife || '').trim(),
+        String(detail?.location || '').trim(),
+        userDisplay,
+        computeReachedUseLifeLabel_(detail?.purchaseDate || '', detail?.useLife || ''),
+        String(detail?.accessory || '').trim(),
+        inventoryResult,
+        String(detail?.remarks || '').trim(),
+        String(detail?.verificationTime || '').trim(),
+        String(detail?.verifiedBy || '').trim(),
+        formatInventoryAssignedUserLabel_(detail?.assignedUser || '', emailToNameMap)
+      ];
+    });
+
+    return {
+      inventoryId: normalizedInventoryId,
+      headers: headers,
+      rows: rows
+    };
+  } catch (e) {
+    Logger.log(`getInventoryExportData 失敗: ${e.message}`);
+    throw e;
+  }
 }
 
 function buildInventoryStatsByAssignee(details, emailToNameMap) {
