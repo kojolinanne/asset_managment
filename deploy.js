@@ -173,7 +173,8 @@ const INVENTORY_LOG_HEADERS = [
   '已盤點數量',
   '總數量',
   '狀態',
-  '完成時間'
+  '完成時間',
+  '篩選條件摘要'
 ];
 
 const INVENTORY_DETAIL_HEADERS = [

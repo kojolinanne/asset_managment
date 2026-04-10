@@ -119,6 +119,7 @@ const IL_VERIFIED_COUNT_COLUMN_INDEX = 6;      // F欄: 已盤點數量
 const IL_TOTAL_COUNT_COLUMN_INDEX = 7;         // G欄: 總數量
 const IL_STATUS_COLUMN_INDEX = 8;              // H欄: 狀態
 const IL_COMPLETION_TIME_COLUMN_INDEX = 9;     // I欄: 完成時間
+const IL_SUMMARY_COLUMN_INDEX = 10;            // J欄: 篩選條件摘要（系統類別 + 範圍 + 分派）
 
 // --- ✨ **新增：「盤點明細」工作表中的欄位索引** ---
 const ID_INVENTORY_ID_COLUMN_INDEX = 1;        // A欄: 盤點ID
@@ -6657,6 +6658,7 @@ function getActiveInventorySessions(userEmail, isAdminMode, userGroup) {
           inventoryPerson: inventoryPersonName, // 使用從映射表查詢的真實姓名
           inventoryEmail: sessionEmail, // 新增：管理員需要知道會話屬於誰
           filter: row[IL_INVENTORY_FILTER_COLUMN_INDEX - 1],
+          conditionSummary: row[IL_SUMMARY_COLUMN_INDEX - 1] || '', // J 欄：篩選條件摘要（新舊會話相容）
           verifiedCount: row[IL_VERIFIED_COUNT_COLUMN_INDEX - 1],
           totalCount: row[IL_TOTAL_COUNT_COLUMN_INDEX - 1],
           status: status,
@@ -6742,6 +6744,13 @@ function startInventorySession(options) {
     const keeperFilterValues = options.filterType === 'keeper' ? normalizeFilterValues(options.filterValue) : [];
     const userFilterValues = options.filterType === 'user' ? normalizeFilterValues(options.filterValue) : [];
     const groupFilterValues = options.filterType === 'group' ? normalizeFilterValues(options.filterValue) : [];
+
+    // ✨ 系統類別範圍：all / new / old，與 filterType 正交組合（AND）
+    const systemScopeRaw = String(options.systemScope || 'all').trim().toLowerCase();
+    const systemScope = (systemScopeRaw === 'new' || systemScopeRaw === 'old') ? systemScopeRaw : 'all';
+    const systemScopeLabel = systemScope === 'new' ? '僅新系統'
+      : systemScope === 'old' ? '僅舊系統'
+      : '全部系統';
 
     // 建立篩選描述
     let filterDescription = '全部';
@@ -6832,6 +6841,10 @@ function startInventorySession(options) {
     let assetsToInventory = allAssets.filter(asset => {
       if (asset.assetStatus !== '在庫' && asset.assetStatus !== '出借中' && asset.assetStatus !== '轉移中' && asset.assetStatus !== '報廢中') return false;
 
+      // ✨ 系統類別前置過濾（與 filterType 正交 AND）
+      if (systemScope === 'new' && asset.sourceSheet !== PROPERTY_MASTER_SHEET_NAME) return false;
+      if (systemScope === 'old' && asset.sourceSheet !== ITEM_MASTER_SHEET_NAME) return false;
+
       if (options.filterType === 'all') return true;
       if (options.filterType === 'location') return locationFilterSet.size > 0 && locationFilterSet.has(asset.location);
       if (options.filterType === 'keeper') return keeperFilterSet.size > 0 && keeperFilterSet.has(asset.leaderName);
@@ -6849,6 +6862,14 @@ function startInventorySession(options) {
       throw new Error('沒有符合條件的資產可供盤點');
     }
 
+    // ✨ 組裝 J 欄篩選條件摘要：系統類別 + 盤點範圍 + 分派方式
+    const assignmentLabelForSummary = assignmentMode === 'custom'
+      ? `指定${assignmentTargetType === 'group' ? '組別' : '使用者'}: ${assignmentTargetLabel || assignmentTargetValue}`
+      : assignmentMode === 'group'
+        ? '依組別分派'
+        : '依人名分派';
+    const sessionSummary = `系統類別: ${systemScopeLabel}, 盤點範圍: ${filterDescription}, 分派方式: ${assignmentLabelForSummary}`;
+
     // 在盤點紀錄表新增一筆記錄
     inventoryLogSheet.appendRow([
       inventoryId,
@@ -6859,7 +6880,8 @@ function startInventorySession(options) {
       0, // 已盤點數量
       assetsToInventory.length, // 總數量
       '進行中',
-      '' // 完成時間
+      '', // 完成時間
+      sessionSummary // J 欄：篩選條件摘要
     ]);
 
     // ✨ 核心邏輯：準備寫入明細表，並自動分發任務
@@ -7830,6 +7852,7 @@ function getInventoryHistory(allRecords) {
       const totalCount = Number(row[IL_TOTAL_COUNT_COLUMN_INDEX - 1] || 0);
       const sessionId = row[IL_INVENTORY_ID_COLUMN_INDEX - 1];
       const summary = row[IL_INVENTORY_FILTER_COLUMN_INDEX - 1] || '';
+      const conditionSummary = row[IL_SUMMARY_COLUMN_INDEX - 1] || '';
 
       return {
         inventoryId: sessionId,
@@ -7846,7 +7869,8 @@ function getInventoryHistory(allRecords) {
         auditor: sessionEmail || inventoryPersonName || '',
         statusCode: statusCode,
         progressDisplay: `${verifiedCount} / ${totalCount}`,
-        summary: summary
+        summary: summary,
+        conditionSummary: conditionSummary // J 欄：篩選條件摘要（新舊會話相容）
       };
     }).filter(item => item);
 
