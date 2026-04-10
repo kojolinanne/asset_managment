@@ -123,18 +123,11 @@ const IL_COMPLETION_TIME_COLUMN_INDEX = 9;     // I欄: 完成時間
 // --- ✨ **新增：「盤點明細」工作表中的欄位索引** ---
 const ID_INVENTORY_ID_COLUMN_INDEX = 1;        // A欄: 盤點ID
 const ID_ASSET_ID_COLUMN_INDEX = 2;            // B欄: 財產編號
-const ID_ASSET_NAME_COLUMN_INDEX = 3;          // C欄: 財產名稱
-const ID_KEEPER_NAME_COLUMN_INDEX = 4;         // D欄: 保管人
-const ID_USER_NAME_COLUMN_INDEX = 5;           // E欄: 使用人
-const ID_LOCATION_COLUMN_INDEX = 6;            // F欄: 地點
-const ID_ORIGINAL_STATUS_COLUMN_INDEX = 7;     // G欄: 原狀態
-const ID_INVENTORY_RESULT_COLUMN_INDEX = 8;    // H欄: 盤點結果
-const ID_REMARKS_COLUMN_INDEX = 9;             // I欄: 備註
-const ID_VERIFICATION_TIME_COLUMN_INDEX = 10;  // J欄: 盤點時間
-const ID_VERIFIED_BY_COLUMN_INDEX = 11;        // K欄: 盤點人
-const ID_ASSIGNED_USER_COLUMN_INDEX = 12;      // ✨ L欄: 指派人員 (New!)
-const ID_IS_IT_ASSET_COLUMN_INDEX = 13;        // ✨ M欄: 是否為資訊資產
-const ID_ISMS_ASSET_ID_COLUMN_INDEX = 14;      // ✨ N欄: 資訊資產編號
+const ID_INVENTORY_RESULT_COLUMN_INDEX = 3;    // C欄: 盤點結果
+const ID_REMARKS_COLUMN_INDEX = 4;             // D欄: 備註
+const ID_VERIFICATION_TIME_COLUMN_INDEX = 5;   // E欄: 盤點時間
+const ID_VERIFIED_BY_COLUMN_INDEX = 6;         // F欄: 盤點人
+const ID_ASSIGNED_USER_COLUMN_INDEX = 7;       // G欄: 指派人員
 
 // --- ✨ **新增：ISMS 資訊資產欄位索引** ---
 const ISMS_ASSET_COLUMN_INDICES = {
@@ -278,6 +271,75 @@ function getAllAssets() {
   
   Logger.log(`getAllAssets: 共讀取並正規化 ${allAssetObjects.length} 筆資產物件。`);
   return allAssetObjects;
+}
+
+function createEmptyInventoryAssetContext_(assetId) {
+  return {
+    assetId: String(assetId || '').trim(),
+    assetName: '',
+    keeperName: '',
+    userName: '',
+    location: '',
+    originalStatus: '',
+    status: '',
+    isItAsset: '',
+    isIsoScope: '',
+    ismsAssetId: '',
+    sourceSheet: ''
+  };
+}
+
+function buildInventoryAssetContextMap_(assetIds) {
+  const normalizedIds = Array.from(new Set((assetIds || [])
+    .map(id => String(id || '').trim())
+    .filter(Boolean)));
+  const contextMap = {};
+
+  if (normalizedIds.length === 0) {
+    return contextMap;
+  }
+
+  const assetIdSet = {};
+  normalizedIds.forEach(id => {
+    assetIdSet[id] = true;
+    contextMap[id] = createEmptyInventoryAssetContext_(id);
+  });
+
+  const allAssets = getAllAssets();
+  allAssets.forEach(asset => {
+    const assetId = String(asset.assetId || '').trim();
+    if (!assetId || !assetIdSet[assetId]) return;
+    contextMap[assetId] = {
+      assetId: assetId,
+      assetName: String(asset.assetName || ''),
+      keeperName: String(asset.leaderName || ''),
+      userName: String(asset.userName || ''),
+      location: String(asset.location || ''),
+      originalStatus: String(asset.assetStatus || ''),
+      status: String(asset.assetStatus || ''),
+      isItAsset: String(asset.isItAsset || ''),
+      isIsoScope: String(asset.isIsoScope || ''),
+      ismsAssetId: String(asset.ismsAssetId || ''),
+      sourceSheet: String(asset.sourceSheet || '')
+    };
+  });
+
+  const ismsMappingResult = getIsmsMappingForAssets(normalizedIds);
+  const ismsMappings = ismsMappingResult && ismsMappingResult.success && ismsMappingResult.mappings
+    ? ismsMappingResult.mappings
+    : {};
+
+  normalizedIds.forEach(assetId => {
+    const mapping = ismsMappings[assetId] || {};
+    if (mapping.isItAsset && !contextMap[assetId].isItAsset) {
+      contextMap[assetId].isItAsset = String(mapping.isItAsset || '');
+    }
+    if (mapping.ismsAssetId) {
+      contextMap[assetId].ismsAssetId = String(mapping.ismsAssetId || '');
+    }
+  });
+
+  return contextMap;
 }
 
 /**
@@ -6397,28 +6459,10 @@ function getPendingInventoryAssignments(forceUserScope) {
       };
     }
 
-    // ✨ 從主表建立 IS_IT_ASSET 對照（單一事實來源）
-    const masterIsItAssetMap = {};
-    const masterIsIsoScopeMap = {};
-    const propertyMasterSheet = ss.getSheetByName(PROPERTY_MASTER_SHEET_NAME);
-    const itemMasterSheet = ss.getSheetByName(ITEM_MASTER_SHEET_NAME);
-    [propertyMasterSheet, itemMasterSheet].forEach(sheet => {
-      if (!sheet || sheet.getLastRow() <= 1) return;
-      const masterData = sheet.getRange(2, 1, sheet.getLastRow() - 1, PROPERTY_COLUMN_INDICES.IS_ISO_SCOPE).getValues();
-      masterData.forEach(row => {
-        const aid = row[PROPERTY_COLUMN_INDICES.ASSET_ID - 1];
-        if (aid) {
-          const aidStr = String(aid).trim();
-          masterIsItAssetMap[aidStr] = row[PROPERTY_COLUMN_INDICES.IS_IT_ASSET - 1] || '';
-          masterIsIsoScopeMap[aidStr] = row[PROPERTY_COLUMN_INDICES.IS_ISO_SCOPE - 1] || '';
-        }
-      });
-    });
-
-    // 讀取包含 ISMS 欄位的資料（最多到第 14 欄）
-    const detailLastCol = Math.max(inventoryDetailSheet.getLastColumn(), ID_ASSIGNED_USER_COLUMN_INDEX);
-    const detailReadCols = Math.min(detailLastCol, ID_ISMS_ASSET_ID_COLUMN_INDEX);
+    const detailReadCols = Math.max(inventoryDetailSheet.getLastColumn(), ID_ASSIGNED_USER_COLUMN_INDEX);
     const detailData = inventoryDetailSheet.getRange(2, 1, inventoryDetailSheet.getLastRow() - 1, detailReadCols).getValues();
+    const scopedRows = [];
+    const assetIds = [];
     const pendingItems = [];
 
     detailData.forEach(row => {
@@ -6436,16 +6480,30 @@ function getPendingInventoryAssignments(forceUserScope) {
         if (!isMyTask) return;
       }
 
+      scopedRows.push(row);
+      const assetId = String(row[ID_ASSET_ID_COLUMN_INDEX - 1] || '').trim();
+      if (assetId) {
+        assetIds.push(assetId);
+      }
+    });
+
+    const inventoryAssetContextMap = buildInventoryAssetContextMap_(assetIds);
+
+    scopedRows.forEach(row => {
+      const inventoryId = row[ID_INVENTORY_ID_COLUMN_INDEX - 1];
+      const assignedUser = row[ID_ASSIGNED_USER_COLUMN_INDEX - 1];
+
       const inventoryResult = row[ID_INVENTORY_RESULT_COLUMN_INDEX - 1];
       const normalizedStatus = normalizeInventoryStatus(inventoryResult);
-      const assetId = row[ID_ASSET_ID_COLUMN_INDEX - 1];
+      const assetId = String(row[ID_ASSET_ID_COLUMN_INDEX - 1] || '').trim();
       if (assetId) {
-        trackInventoryStatus(String(assetId).trim(), inventoryId, normalizedStatus);
+        trackInventoryStatus(assetId, inventoryId, normalizedStatus);
       }
 
       if (normalizedStatus !== '未盤點') return;
 
       const session = activeSessions[inventoryId];
+      const assetContext = inventoryAssetContextMap[assetId] || createEmptyInventoryAssetContext_(assetId);
       const assignedUserValue = assignedUser ? String(assignedUser).trim() : '';
       const assignedIsEmail = assignedUserValue.includes('@');
       const normalizedAssignedEmail = assignedIsEmail ? assignedUserValue.toLowerCase() : '';
@@ -6469,21 +6527,18 @@ function getPendingInventoryAssignments(forceUserScope) {
         inventoryPerson: session.inventoryPerson,
         inventoryEmail: session.inventoryEmail,
         assetId: assetId,
-        assetName: row[ID_ASSET_NAME_COLUMN_INDEX - 1],
-        keeperName: row[ID_KEEPER_NAME_COLUMN_INDEX - 1],
-        userName: row[ID_USER_NAME_COLUMN_INDEX - 1],
-        location: row[ID_LOCATION_COLUMN_INDEX - 1],
-        originalStatus: row[ID_ORIGINAL_STATUS_COLUMN_INDEX - 1],
+        assetName: assetContext.assetName,
+        keeperName: assetContext.keeperName,
+        userName: assetContext.userName,
+        location: assetContext.location,
+        originalStatus: assetContext.originalStatus,
         assignedUser: assignedUserValue,
         assignedUserLabel: assignedUserLabel,
         assignedGroup: assignedGroup,
         assignedUserType: assignedUserType,
-        // ✨ isItAsset 以主表（財產/物品總表 X欄）為單一事實來源，主表無資料時退回盤點明細快照
-        isItAsset: masterIsItAssetMap[String(assetId).trim()] !== undefined && masterIsItAssetMap[String(assetId).trim()] !== ''
-          ? masterIsItAssetMap[String(assetId).trim()]
-          : (detailReadCols >= ID_IS_IT_ASSET_COLUMN_INDEX ? (row[ID_IS_IT_ASSET_COLUMN_INDEX - 1] || '') : ''),
-        ismsAssetId: detailReadCols >= ID_ISMS_ASSET_ID_COLUMN_INDEX ? (row[ID_ISMS_ASSET_ID_COLUMN_INDEX - 1] || '') : '', // ✨ ISMS
-        isIsoScope: masterIsIsoScopeMap[String(assetId).trim()] || '' // ✨ ISMS：是否在ISO驗證範圍內（Z欄）
+        isItAsset: assetContext.isItAsset,
+        ismsAssetId: assetContext.ismsAssetId,
+        isIsoScope: assetContext.isIsoScope
       });
     });
 
@@ -6774,27 +6829,6 @@ function startInventorySession(options) {
     // 取得要盤點的資產
     const allAssets = getAllAssets();
 
-    // ✨ 預載 ISMS 對照資料（如果 ISMS 功能已啟用）
-    let ismsMappingMap = {};
-    if (ISMS_SPREADSHEET_ID && ISMS_SPREADSHEET_ID !== 'YOUR_ISMS_SPREADSHEET_ID_HERE') {
-      try {
-        const ismsSs = SpreadsheetApp.openById(ISMS_SPREADSHEET_ID);
-        const mappingSheet = ismsSs.getSheetByName(ISMS_MAPPING_SHEET_NAME);
-        if (mappingSheet && mappingSheet.getLastRow() > 1) {
-          const mappingData = mappingSheet.getRange(2, 1, mappingSheet.getLastRow() - 1, ISMS_MAPPING_COLUMN_INDICES.ISMS_ASSET_ID).getValues();
-          for (let i = 0; i < mappingData.length; i++) {
-            const aid = mappingData[i][ISMS_MAPPING_COLUMN_INDICES.ASSET_ID - 1];
-            const ismsId = mappingData[i][ISMS_MAPPING_COLUMN_INDICES.ISMS_ASSET_ID - 1];
-            if (aid && ismsId) {
-              ismsMappingMap[aid.toString()] = ismsId.toString();
-            }
-          }
-        }
-      } catch (e) {
-        Logger.log('預載 ISMS 對照失敗（非致命）: ' + e.message);
-      }
-    }
-
     let assetsToInventory = allAssets.filter(asset => {
       if (asset.assetStatus !== '在庫' && asset.assetStatus !== '出借中' && asset.assetStatus !== '轉移中' && asset.assetStatus !== '報廢中') return false;
 
@@ -6858,33 +6892,24 @@ function startInventorySession(options) {
         }
       }
 
-      const userName = asset.sourceSheet === PROPERTY_MASTER_SHEET_NAME ? (asset.userName || '') : '';
-
-      // 取得資產的現有資訊資產標記與 ISMS 對照
-      const isItAssetValue = asset.isItAsset || '';
-      const ismsAssetIdValue = ismsMappingMap[asset.assetId] || '';
-
       return [
         inventoryId,
         asset.assetId,
-        asset.assetName,
-        asset.leaderName,
-        userName,
-        asset.location,
-        asset.assetStatus,
         '未盤點', // 盤點結果
         '', // 備註
         '', // 盤點時間
         '', // 盤點人
-        assignedUser, // ✨ 指派人員 (Col 12)
-        isItAssetValue, // ✨ 是否為資訊資產 (Col 13)
-        ismsAssetIdValue // ✨ 資訊資產編號 (Col 14)
+        assignedUser
       ];
     });
 
     if (detailRows.length > 0) {
-      // 寫入資料 (注意：現在是 14 欄，含 ISMS 分類欄位)
-      inventoryDetailSheet.getRange(inventoryDetailSheet.getLastRow() + 1, 1, detailRows.length, 14).setValues(detailRows);
+      inventoryDetailSheet.getRange(
+        inventoryDetailSheet.getLastRow() + 1,
+        1,
+        detailRows.length,
+        ID_ASSIGNED_USER_COLUMN_INDEX
+      ).setValues(detailRows);
     }
 
     const assignmentMessage = assignmentMode === 'custom'
@@ -6926,15 +6951,24 @@ function getInventoryDetails(inventoryId) {
       return [];
     }
 
-    // 讀取包含第 14 欄的資料（含 ISMS 分類欄位）
-    const lastCol = Math.max(inventoryDetailSheet.getLastColumn(), ID_ISMS_ASSET_ID_COLUMN_INDEX);
-    const readCols = Math.min(lastCol, ID_ISMS_ASSET_ID_COLUMN_INDEX);
+    const readCols = Math.max(inventoryDetailSheet.getLastColumn(), ID_ASSIGNED_USER_COLUMN_INDEX);
     const data = inventoryDetailSheet.getRange(2, 1, inventoryDetailSheet.getLastRow() - 1, readCols).getValues();
+    const assetIds = [];
+    data.forEach(row => {
+      if (row[ID_INVENTORY_ID_COLUMN_INDEX - 1] !== inventoryId) return;
+      const assetId = String(row[ID_ASSET_ID_COLUMN_INDEX - 1] || '').trim();
+      if (assetId) {
+        assetIds.push(assetId);
+      }
+    });
+    const inventoryAssetContextMap = buildInventoryAssetContextMap_(assetIds);
     const details = [];
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
       if (row[ID_INVENTORY_ID_COLUMN_INDEX - 1] === inventoryId) {
+        const assetId = String(row[ID_ASSET_ID_COLUMN_INDEX - 1] || '').trim();
+        const assetContext = inventoryAssetContextMap[assetId] || createEmptyInventoryAssetContext_(assetId);
         const rawVerificationTime = row[ID_VERIFICATION_TIME_COLUMN_INDEX - 1];
         const verificationTimeStr = rawVerificationTime instanceof Date
           ? Utilities.formatDate(rawVerificationTime, Session.getScriptTimeZone(), "yyyy/MM/dd HH:mm:ss")
@@ -6942,19 +6976,19 @@ function getInventoryDetails(inventoryId) {
 
         details.push({
           rowIndex: i + 2,
-          assetId: row[ID_ASSET_ID_COLUMN_INDEX - 1],
-          assetName: row[ID_ASSET_NAME_COLUMN_INDEX - 1],
-          keeperName: row[ID_KEEPER_NAME_COLUMN_INDEX - 1],
-          userName: row[ID_USER_NAME_COLUMN_INDEX - 1],
-          location: row[ID_LOCATION_COLUMN_INDEX - 1],
-          originalStatus: row[ID_ORIGINAL_STATUS_COLUMN_INDEX - 1],
+          assetId: assetId,
+          assetName: assetContext.assetName,
+          keeperName: assetContext.keeperName,
+          userName: assetContext.userName,
+          location: assetContext.location,
+          originalStatus: assetContext.originalStatus,
           inventoryResult: row[ID_INVENTORY_RESULT_COLUMN_INDEX - 1],
           remarks: row[ID_REMARKS_COLUMN_INDEX - 1],
           verificationTime: verificationTimeStr,
           verifiedBy: row[ID_VERIFIED_BY_COLUMN_INDEX - 1],
-          assignedUser: row[ID_ASSIGNED_USER_COLUMN_INDEX - 1], // ✨ 指派人員
-          isItAsset: readCols >= ID_IS_IT_ASSET_COLUMN_INDEX ? (row[ID_IS_IT_ASSET_COLUMN_INDEX - 1] || '') : '', // ✨ 是否為資訊資產
-          ismsAssetId: readCols >= ID_ISMS_ASSET_ID_COLUMN_INDEX ? (row[ID_ISMS_ASSET_ID_COLUMN_INDEX - 1] || '') : '' // ✨ 資訊資產編號
+          assignedUser: row[ID_ASSIGNED_USER_COLUMN_INDEX - 1],
+          isItAsset: assetContext.isItAsset,
+          ismsAssetId: assetContext.ismsAssetId
         });
       }
     }
@@ -8085,7 +8119,7 @@ function getIsmsMappingForAssets(assetIds) {
 
 /**
  * 儲存資產的 ISMS 分類（盤點時呼叫）
- * 同時更新：1) 主試算表 IS_IT_ASSET 欄位 2) ISMS 對照表 3) 盤點明細 ISMS 欄位
+ * 同時更新：1) 主試算表 IS_IT_ASSET 欄位 2) ISMS 對照表
  * @param {string} assetId - 資產編號
  * @param {boolean} isItAsset - 是否為資訊資產
  * @param {string} ismsAssetId - 資訊資產編號（空字串表示不對照）
@@ -8095,7 +8129,6 @@ function saveIsmsClassification(assetId, isItAsset, ismsAssetId, isIsoScope) {
   try {
     const currentUserEmail = Session.getActiveUser().getEmail();
     const timestamp = new Date().toISOString();
-    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
 
     // 1. 更新主試算表的 IS_IT_ASSET / IS_ISO_SCOPE / ISMS_ASSET_ID 欄位
     const location = findAssetLocation(assetId);
@@ -8170,39 +8203,6 @@ function saveIsmsClassification(assetId, isItAsset, ismsAssetId, isIsoScope) {
       } catch (e) {
         Logger.log('刪除 ISMS 對照記錄失敗（非致命）: ' + e.message);
       }
-    }
-
-    // 3. 更新所有進行中的盤點明細中的 ISMS 欄位
-    try {
-      const inventoryDetailSheet = ss.getSheetByName(INVENTORY_DETAIL_SHEET_NAME);
-      if (inventoryDetailSheet && inventoryDetailSheet.getLastRow() > 1) {
-        const inventoryLogSheet = ss.getSheetByName(INVENTORY_LOG_SHEET_NAME);
-        // 取得進行中的會話ID
-        const activeSessions = {};
-        if (inventoryLogSheet && inventoryLogSheet.getLastRow() > 1) {
-          const logData = inventoryLogSheet.getRange(2, 1, inventoryLogSheet.getLastRow() - 1, IL_STATUS_COLUMN_INDEX).getValues();
-          for (let i = 0; i < logData.length; i++) {
-            if (logData[i][IL_STATUS_COLUMN_INDEX - 1] === '進行中') {
-              activeSessions[logData[i][IL_INVENTORY_ID_COLUMN_INDEX - 1]] = true;
-            }
-          }
-        }
-
-        const lastCol = inventoryDetailSheet.getLastColumn();
-        const detailCols = Math.max(lastCol, ID_ISMS_ASSET_ID_COLUMN_INDEX);
-        const detailData = inventoryDetailSheet.getRange(2, 1, inventoryDetailSheet.getLastRow() - 1, detailCols).getValues();
-        for (let i = 0; i < detailData.length; i++) {
-          const rowInvId = detailData[i][ID_INVENTORY_ID_COLUMN_INDEX - 1];
-          const rowAssetId = detailData[i][ID_ASSET_ID_COLUMN_INDEX - 1];
-          if (rowAssetId && rowAssetId.toString() === assetId && activeSessions[rowInvId]) {
-            const rowIndex = i + 2;
-            inventoryDetailSheet.getRange(rowIndex, ID_IS_IT_ASSET_COLUMN_INDEX).setValue(isItAsset ? '是' : '');
-            inventoryDetailSheet.getRange(rowIndex, ID_ISMS_ASSET_ID_COLUMN_INDEX).setValue(ismsAssetId || '');
-          }
-        }
-      }
-    } catch (e) {
-      Logger.log('更新盤點明細 ISMS 欄位失敗（非致命）: ' + e.message);
     }
 
     return { success: true, message: '已儲存資訊資產分類' };
