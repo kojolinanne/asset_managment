@@ -11181,6 +11181,24 @@
             const isAdminView = isAdmin && viewMode === 'admin';
             const isAdvancedMode = cartSnapshot.mode === 'ADVANCED';
             const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
+            const decorateAssetForUserState = useCallback((asset) => {
+                const sourceSheet = String(asset?.sourceSheet || '').trim();
+                const systemCategory = sourceSheet === '物品總表' ? '舊系統' : '新系統';
+                return {
+                    ...asset,
+                    systemCategory,
+                    searchText: [
+                        asset?.assetId,
+                        asset?.assetName,
+                        asset?.leader,
+                        asset?.location,
+                        systemCategory
+                    ].filter(Boolean).join(' ').toLowerCase()
+                };
+            }, []);
+            const decorateAssetListForUserState = useCallback((assets) => (
+                Array.isArray(assets) ? assets.map(decorateAssetForUserState) : []
+            ), [decorateAssetForUserState]);
             const isInventoryTaskOnly = useCallback((asset) => {
                 if (!asset) return false;
                 if (isAdminView) return false;
@@ -12369,23 +12387,7 @@
                                     return;
                                 }
 
-                                // ✨ 方案 B：預處理搜尋文字，避免每次搜尋都重新計算
-                                // ✨ 同時依 sourceSheet 衍生系統類別（物品總表=舊系統，財產總表=新系統）
-                                const processedAssets = (response.assets || []).map(asset => {
-                                    const systemCategory = asset.sourceSheet === '物品總表' ? '舊系統' : '新系統';
-                                    return {
-                                        ...asset,
-                                        systemCategory,
-                                        searchText: [
-                                            asset.assetId,
-                                            asset.assetName,
-                                            asset.leader,
-                                            asset.location,
-                                            systemCategory
-                                        ].filter(Boolean).join(' ').toLowerCase()
-                                    };
-                                });
-                                setAllAssets(processedAssets);
+                                setAllAssets(decorateAssetListForUserState(response.assets));
                                 if (!viewModeInitializedRef.current) {
                                     setViewMode(response.isAdmin ? 'admin' : 'user');
                                     viewModeInitializedRef.current = true;
@@ -12582,17 +12584,7 @@
                         updateCurrentInventorySessionId(sessionId);
                     }
                     if (assetsResponse.status === 'fulfilled' && assetsResponse.value?.assets) {
-                        // ✨ 方案 B：預處理搜尋文字
-                        const processedAssets = assetsResponse.value.assets.map(asset => ({
-                            ...asset,
-                            searchText: [
-                                asset.assetId,
-                                asset.assetName,
-                                asset.leader,
-                                asset.location
-                            ].filter(Boolean).join(' ').toLowerCase()
-                        }));
-                        setAllAssets(processedAssets);
+                        setAllAssets(decorateAssetListForUserState(assetsResponse.value.assets));
                     }
                     if (transferCountResponse.status === 'fulfilled' && typeof transferCountResponse.value === 'number') {
                         setTransferPendingCount(transferCountResponse.value);
@@ -12630,7 +12622,7 @@
                 } finally {
                     setIsLoadingPendingInventory(false);
                 }
-            }, [fetchPendingInventoryAssignments, isAdmin, scheduleScrapPendingPreload, scheduleTransferPendingPreload, scheduleAddAssetDropdownPreload, updateCurrentInventorySessionId, viewMode]);
+            }, [decorateAssetListForUserState, fetchPendingInventoryAssignments, isAdmin, scheduleScrapPendingPreload, scheduleTransferPendingPreload, scheduleAddAssetDropdownPreload, updateCurrentInventorySessionId, viewMode]);
 
             // 重新整理按鈕點擊處理
             const handleRefreshCards = () => {
