@@ -625,13 +625,13 @@
       clean = clean.substring(2);
     }
 
-    if (/^\d{18}$/.test(clean)) {
+    if (/^\d{10}[0-9AB]\d{7}$/.test(clean)) {
       return clean.substring(0, 7) + '-' +
              clean.substring(7, 11) + '-' +
              clean.substring(11);
     }
 
-    if (/^\d{7}-\d{4}-\d{7}$/.test(clean)) return clean;
+    if (/^\d{7}-\d{3}[0-9AB]-\d{7}$/.test(clean)) return clean;
     if (/^\d{5}-\d{4}$/.test(clean)) return clean;
     if (/^\d{5}-\d{3}[AB]$/.test(clean)) return clean;
 
@@ -642,13 +642,13 @@
     var clean = normalizeAssetCode(text);
     if (!clean) return '';
 
-    if (/^\d{7}-\d{4}-\d{7}$/.test(clean)) return clean;
+    if (/^\d{7}-\d{3}[0-9AB]-\d{7}$/.test(clean)) return clean;
     if (/^\d{5}-\d{4}$/.test(clean)) return clean;
     if (/^\d{5}-\d{3}[AB]$/.test(clean)) return clean;
 
     var compact = clean.replace(/-/g, '');
 
-    if (/^\d{18}$/.test(compact)) {
+    if (/^\d{10}[0-9AB]\d{7}$/.test(compact)) {
       return compact.substring(0, 7) + '-' +
              compact.substring(7, 11) + '-' +
              compact.substring(11);
