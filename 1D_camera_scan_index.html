@@ -1438,7 +1438,7 @@
 
   function updateTorchUi() {
     if (!elements.torchToggle) return;
-    var shouldShow = torchSupported && currentMode === OCR_MODE;
+    var shouldShow = torchSupported && streamActive;
     elements.torchToggle.classList.toggle('visible', shouldShow);
     elements.torchToggle.classList.toggle('active', torchEnabled);
     elements.torchToggle.disabled = torchBusy;
