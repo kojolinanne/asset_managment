@@ -148,6 +148,48 @@
       pointer-events: none;
     }
 
+    .torch-toggle {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      min-width: 92px;
+      height: 38px;
+      padding: 0 12px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.58);
+      color: #f8fafc;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      z-index: 5;
+      backdrop-filter: blur(8px);
+      transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+    }
+
+    .torch-toggle.visible {
+      display: inline-flex;
+    }
+
+    .torch-toggle.active {
+      background: rgba(245, 158, 11, 0.9);
+      border-color: rgba(253, 224, 71, 0.7);
+      color: #1f2937;
+    }
+
+    .torch-toggle:active {
+      transform: translateY(1px);
+    }
+
+    .torch-toggle:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
     .scan-frame {
       position: absolute;
       top: 50%;
@@ -475,6 +517,7 @@
       <canvas id="freeze-frame"></canvas>
       <canvas id="barcode-overlay"></canvas>
     </div>
+    <button id="torch-toggle" class="torch-toggle" type="button" aria-pressed="false">補光燈</button>
     <div class="scan-frame" id="scan-frame">
       <div class="scan-line"></div>
       <div class="confirm-dots">
@@ -514,6 +557,7 @@
 
 <canvas id="frame-canvas" class="hidden-canvas"></canvas>
 <canvas id="ocr-canvas" class="hidden-canvas"></canvas>
+<canvas id="ocr-work-canvas" class="hidden-canvas"></canvas>
 
 <script>
 (function () {
@@ -526,11 +570,15 @@
   var BARCODE_MODE = 'barcode';
   var OCR_MODE = 'ocr';
   var OCR_WHITELIST = '0123456789AB-';
+  var OCR_CAPTURE_PADDING = 20;
+  var OCR_OUTPUT_PADDING = 56;
+  var OCR_UPSCALE = 4;
 
   var elements = {};
   var currentMode = BARCODE_MODE;
   var pendingMap = {};
   var stream = null;
+  var videoTrack = null;
   var streamActive = false;
   var barcodeTimer = null;
   var barcodeDecodeBusy = false;
@@ -542,6 +590,9 @@
   var ocrCaptureBusy = false;
   var pendingOcrResult = null;
   var latestPreviewMetrics = null;
+  var torchSupported = false;
+  var torchEnabled = false;
+  var torchBusy = false;
 
   function cacheElements() {
     elements.card = document.getElementById('scanner-card');
@@ -566,10 +617,13 @@
     elements.ocrResultMeta = document.getElementById('ocr-result-meta');
     elements.ocrSubmitBtn = document.getElementById('ocr-submit-btn');
     elements.ocrRescanBtn = document.getElementById('ocr-rescan-btn');
+    elements.torchToggle = document.getElementById('torch-toggle');
     elements.frameCanvas = document.getElementById('frame-canvas');
     elements.frameCtx = elements.frameCanvas.getContext('2d', { willReadFrequently: true });
     elements.ocrCanvas = document.getElementById('ocr-canvas');
     elements.ocrCtx = elements.ocrCanvas.getContext('2d', { willReadFrequently: true });
+    elements.ocrWorkCanvas = document.getElementById('ocr-work-canvas');
+    elements.ocrWorkCtx = elements.ocrWorkCanvas.getContext('2d', { willReadFrequently: true });
   }
 
   function bindEvents() {
@@ -582,6 +636,7 @@
     elements.ocrCaptureBtn.addEventListener('click', handleOcrCapture);
     elements.ocrSubmitBtn.addEventListener('click', submitPendingOcrResult);
     elements.ocrRescanBtn.addEventListener('click', resetOcrReviewState);
+    elements.torchToggle.addEventListener('click', toggleTorch);
 
     window.addEventListener('resize', refreshOverlaySize);
     window.addEventListener('beforeunload', cleanupApp);
@@ -760,9 +815,11 @@
     });
 
     elements.video.srcObject = stream;
+    videoTrack = stream.getVideoTracks()[0] || null;
     await waitForVideoReady(elements.video);
     streamActive = true;
     refreshOverlaySize();
+    detectTorchSupport();
     setStatus('info', '掃描器運作中，請將條碼對準框內...');
   }
 
@@ -848,6 +905,7 @@
     elements.cameraHint.textContent = isOcrMode
       ? '將編號置中對準黃框後，點擊下方按鈕手動拍攝'
       : '將條碼水平對準框內';
+    updateTorchUi();
     updateOcrActionState();
   }
 
@@ -1203,12 +1261,12 @@
   function prepareOcrCrop() {
     var frameRect = elements.scanFrame.getBoundingClientRect();
     var readerRect = elements.reader.getBoundingClientRect();
-    var padding = 8;
+    var padding = OCR_CAPTURE_PADDING;
     var displayRect = {
       x: Math.max(0, frameRect.left - readerRect.left - padding),
       y: Math.max(0, frameRect.top - readerRect.top - padding),
-      width: Math.min(readerRect.width, frameRect.width + padding * 2),
-      height: Math.min(readerRect.height, frameRect.height + padding * 2)
+      width: Math.min(readerRect.width - Math.max(0, frameRect.left - readerRect.left - padding), frameRect.width + padding * 2),
+      height: Math.min(readerRect.height - Math.max(0, frameRect.top - readerRect.top - padding), frameRect.height + padding * 2)
     };
 
     var metrics = getPreviewMetrics(elements.video.videoWidth, elements.video.videoHeight);
@@ -1217,10 +1275,11 @@
     var sourceWidth = Math.min(elements.video.videoWidth - sourceX, Math.round(displayRect.width / metrics.scale));
     var sourceHeight = Math.min(elements.video.videoHeight - sourceY, Math.round(displayRect.height / metrics.scale));
 
-    var upscale = 3;
-    elements.ocrCanvas.width = Math.max(1, sourceWidth * upscale);
-    elements.ocrCanvas.height = Math.max(1, sourceHeight * upscale);
-    elements.ocrCtx.drawImage(
+    elements.ocrWorkCanvas.width = Math.max(1, sourceWidth * OCR_UPSCALE);
+    elements.ocrWorkCanvas.height = Math.max(1, sourceHeight * OCR_UPSCALE);
+    elements.ocrWorkCtx.fillStyle = '#ffffff';
+    elements.ocrWorkCtx.fillRect(0, 0, elements.ocrWorkCanvas.width, elements.ocrWorkCanvas.height);
+    elements.ocrWorkCtx.drawImage(
       elements.video,
       sourceX,
       sourceY,
@@ -1228,17 +1287,25 @@
       sourceHeight,
       0,
       0,
-      elements.ocrCanvas.width,
-      elements.ocrCanvas.height
+      elements.ocrWorkCanvas.width,
+      elements.ocrWorkCanvas.height
     );
 
-    preprocessOcrCanvas(elements.ocrCanvas, elements.ocrCtx);
+    preprocessOcrCanvas(elements.ocrWorkCanvas, elements.ocrWorkCtx);
+
+    var quietPadding = Math.max(OCR_OUTPUT_PADDING, Math.round(Math.max(elements.ocrWorkCanvas.width, elements.ocrWorkCanvas.height) * 0.12));
+    elements.ocrCanvas.width = elements.ocrWorkCanvas.width + quietPadding * 2;
+    elements.ocrCanvas.height = elements.ocrWorkCanvas.height + quietPadding * 2;
+    elements.ocrCtx.fillStyle = '#ffffff';
+    elements.ocrCtx.fillRect(0, 0, elements.ocrCanvas.width, elements.ocrCanvas.height);
+    elements.ocrCtx.drawImage(elements.ocrWorkCanvas, quietPadding, quietPadding);
 
     return {
       sourceX: sourceX,
       sourceY: sourceY,
       sourceWidth: sourceWidth,
-      sourceHeight: sourceHeight
+      sourceHeight: sourceHeight,
+      quietPadding: quietPadding
     };
   }
 
@@ -1246,19 +1313,29 @@
     var imageData = context.getImageData(0, 0, canvas.width, canvas.height);
     var data = imageData.data;
     var total = 0;
+    var minLuminance = 255;
+    var maxLuminance = 0;
     var luminances = new Uint8Array(data.length / 4);
 
     for (var i = 0, index = 0; i < data.length; i += 4, index++) {
       var luminance = Math.round(data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
       luminances[index] = luminance;
       total += luminance;
+      if (luminance < minLuminance) minLuminance = luminance;
+      if (luminance > maxLuminance) maxLuminance = luminance;
     }
 
     var average = total / luminances.length;
-    var threshold = Math.max(110, Math.min(185, average * 0.92));
+    var range = Math.max(1, maxLuminance - minLuminance);
+    var gain = 255 / range;
+    var contrastBoost = range < 110 ? 1.95 : 1.7;
+    var threshold = Math.max(142, Math.min(212, average * 0.96 + 18));
 
     for (var j = 0, cursor = 0; j < data.length; j += 4, cursor++) {
-      var value = luminances[cursor] >= threshold ? 255 : 0;
+      var stretched = (luminances[cursor] - minLuminance) * gain;
+      var contrasted = (stretched - 128) * contrastBoost + 128;
+      var clamped = Math.max(0, Math.min(255, contrasted));
+      var value = clamped >= threshold ? 255 : Math.max(0, Math.round(clamped * 0.14));
       data[j] = value;
       data[j + 1] = value;
       data[j + 2] = value;
@@ -1291,6 +1368,9 @@
 
     stopBarcodeLoop();
     clearOverlay();
+    if (torchSupported && torchEnabled) {
+      disableTorchSilently();
+    }
     stopSharedCamera();
 
     if (ocrWorker) {
@@ -1314,6 +1394,7 @@
         } catch (error) {}
       });
       stream = null;
+      videoTrack = null;
       streamActive = false;
     }
 
@@ -1321,6 +1402,79 @@
       elements.video.pause();
       elements.video.srcObject = null;
     }
+    torchSupported = false;
+    torchEnabled = false;
+    torchBusy = false;
+    if (elements.torchToggle) {
+      updateTorchUi();
+    }
+  }
+
+  function detectTorchSupport() {
+    torchSupported = false;
+    torchEnabled = false;
+    if (!videoTrack) {
+      updateTorchUi();
+      return;
+    }
+
+    try {
+      var supportedConstraints = navigator.mediaDevices && navigator.mediaDevices.getSupportedConstraints
+        ? navigator.mediaDevices.getSupportedConstraints()
+        : {};
+      var capabilities = typeof videoTrack.getCapabilities === 'function'
+        ? videoTrack.getCapabilities()
+        : null;
+      torchSupported = !!(
+        supportedConstraints.torch ||
+        (capabilities && (capabilities.torch === true || Array.isArray(capabilities.torch)))
+      );
+    } catch (error) {
+      torchSupported = false;
+    }
+
+    updateTorchUi();
+  }
+
+  function updateTorchUi() {
+    if (!elements.torchToggle) return;
+    var shouldShow = torchSupported && currentMode === OCR_MODE;
+    elements.torchToggle.classList.toggle('visible', shouldShow);
+    elements.torchToggle.classList.toggle('active', torchEnabled);
+    elements.torchToggle.disabled = torchBusy;
+    elements.torchToggle.setAttribute('aria-pressed', String(torchEnabled));
+    elements.torchToggle.textContent = torchEnabled ? '補光燈 ON' : '補光燈';
+  }
+
+  async function toggleTorch() {
+    if (!torchSupported || !videoTrack || torchBusy) return;
+
+    torchBusy = true;
+    updateTorchUi();
+
+    try {
+      var nextState = !torchEnabled;
+      await videoTrack.applyConstraints({
+        advanced: [{ torch: nextState }]
+      });
+      torchEnabled = nextState;
+    } catch (error) {
+      console.warn('[Scanner] 補光燈切換失敗:', error);
+      setStatus('error', '此裝置暫時無法切換補光燈');
+    } finally {
+      torchBusy = false;
+      updateTorchUi();
+    }
+  }
+
+  function disableTorchSilently() {
+    if (!videoTrack) return;
+    try {
+      videoTrack.applyConstraints({
+        advanced: [{ torch: false }]
+      });
+    } catch (error) {}
+    torchEnabled = false;
   }
 
   document.addEventListener('DOMContentLoaded', initializeApp);
