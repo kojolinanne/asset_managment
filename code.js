@@ -7090,16 +7090,58 @@ function getInventoryExportHeaders_() {
   ];
 }
 
+function parseInventoryExportDate_(value) {
+  if (!value) return null;
+
+  if (Object.prototype.toString.call(value) === '[object Date]') {
+    const time = value.getTime();
+    return Number.isNaN(time) ? null : new Date(time);
+  }
+
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  const firstLine = raw
+    .split('\n')
+    .map(line => line.trim())
+    .find(line => line) || raw;
+
+  const dateMatch = firstLine.match(/(\d{1,4})\s*[\/\-\.]\s*(\d{1,2})\s*[\/\-\.]\s*(\d{1,2})/);
+  if (dateMatch) {
+    let year = parseInt(dateMatch[1], 10);
+    const month = parseInt(dateMatch[2], 10);
+    const day = parseInt(dateMatch[3], 10);
+
+    if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
+      if (year < 1911) {
+        year += 1911;
+      }
+
+      const parsed = new Date(year, month - 1, day);
+      if (!Number.isNaN(parsed.getTime()) &&
+          parsed.getFullYear() === year &&
+          parsed.getMonth() === month - 1 &&
+          parsed.getDate() === day) {
+        return parsed;
+      }
+    }
+  }
+
+  const fallback = new Date(firstLine);
+  if (!Number.isNaN(fallback.getTime())) {
+    return fallback;
+  }
+
+  return null;
+}
+
 function formatInventoryExportDate_(value) {
   if (!value) return '';
-  if (value instanceof Date && !isNaN(value.getTime())) {
-    return Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy/MM/dd');
+  const parsed = parseInventoryExportDate_(value);
+  if (!parsed) {
+    return String(value || '');
   }
-  const parsed = new Date(value);
-  if (!isNaN(parsed.getTime())) {
-    return Utilities.formatDate(parsed, Session.getScriptTimeZone(), 'yyyy/MM/dd');
-  }
-  return String(value || '');
+  return Utilities.formatDate(parsed, Session.getScriptTimeZone(), 'yyyy/MM/dd');
 }
 
 function getInventoryAssetTypeLabel_(sourceSheet) {
@@ -7111,21 +7153,24 @@ function computeReachedUseLifeLabel_(purchaseDateValue, useLifeValue) {
     return '';
   }
 
-  const purchaseDate = purchaseDateValue instanceof Date
-    ? new Date(purchaseDateValue.getTime())
-    : new Date(purchaseDateValue);
-  if (isNaN(purchaseDate.getTime())) {
+  const purchaseDate = parseInventoryExportDate_(purchaseDateValue);
+  if (!purchaseDate) {
     return '';
   }
 
   const useLife = parseInt(String(useLifeValue).trim(), 10);
-  if (isNaN(useLife)) {
+  if (isNaN(useLife) || useLife <= 0) {
     return '';
   }
 
   const expireDate = new Date(purchaseDate.getTime());
   expireDate.setFullYear(expireDate.getFullYear() + useLife);
-  return expireDate.getTime() <= Date.now() ? '是' : '否';
+  expireDate.setHours(0, 0, 0, 0);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return expireDate.getTime() <= today.getTime() ? '是' : '否';
 }
 
 function formatInventoryAssignedUserLabel_(assignedUser, emailToNameMap) {

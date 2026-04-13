@@ -29,8 +29,8 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
 
-    <!-- SheetJS (Excel Export) -->
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Excel Export with cell style support -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 
     <!-- Babel Standalone -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -3988,12 +3988,57 @@
                     rows.forEach(row => {
                         const cell = row[columnIndex];
                         if (cell === null || cell === undefined) return;
-                        const length = String(cell).length;
+                        const length = String(cell)
+                            .split(/\r?\n/)
+                            .reduce((lineMax, line) => Math.max(lineMax, line.length), 0);
                         if (length > maxLength) {
                             maxLength = length;
                         }
                     });
                     return { wch: Math.min(32, Math.max(8, Math.round(maxLength * 1.5))) };
+                });
+            }, []);
+
+            const buildInventoryExcelRows = useCallback((headers, rows) => {
+                const excelRows = [headers];
+                (rows || []).forEach(row => {
+                    const nextRow = Array.isArray(row) ? [...row] : [];
+                    const displayDate = String(nextRow[7] || '').trim();
+                    if (displayDate) {
+                        nextRow[7] = `${displayDate}\n${displayDate}`;
+                    }
+                    excelRows.push(nextRow);
+                });
+                return excelRows;
+            }, []);
+
+            const applyInventoryExcelFormatting = useCallback((sheet, rows) => {
+                if (!sheet || !window.XLSX?.utils?.encode_cell) return;
+
+                const totalRows = Array.isArray(rows) ? rows.length : 0;
+                if (totalRows === 0) return;
+
+                const wrapColumns = [2, 7];
+                wrapColumns.forEach(columnIndex => {
+                    for (let rowIndex = 1; rowIndex < totalRows; rowIndex++) {
+                        const cellAddress = window.XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex });
+                        const cell = sheet[cellAddress];
+                        if (!cell || !String(cell.v || '').includes('\n')) continue;
+                        cell.s = {
+                            ...(cell.s || {}),
+                            alignment: {
+                                ...(cell.s?.alignment || {}),
+                                wrapText: true,
+                                vertical: 'center'
+                            }
+                        };
+                    }
+                });
+
+                sheet['!rows'] = rows.map((row, index) => {
+                    if (index === 0) return { hpt: 24 };
+                    const hasMultilineCell = [2, 7].some(columnIndex => String(row?.[columnIndex] || '').includes('\n'));
+                    return hasMultilineCell ? { hpt: 34 } : { hpt: 22 };
                 });
             }, []);
 
@@ -4026,11 +4071,17 @@
                     const exportSessionId = response?.inventoryId || sessionId;
                     const sheetRows = [headers, ...rows];
                     if (format === 'excel') {
+                        const excelRows = buildInventoryExcelRows(headers, rows);
                         const workbook = window.XLSX.utils.book_new();
-                        const sheet = window.XLSX.utils.aoa_to_sheet(sheetRows);
-                        sheet['!cols'] = buildInventoryColumnWidths(sheetRows);
+                        const sheet = window.XLSX.utils.aoa_to_sheet(excelRows);
+                        sheet['!cols'] = buildInventoryColumnWidths(excelRows);
+                        applyInventoryExcelFormatting(sheet, excelRows);
                         window.XLSX.utils.book_append_sheet(workbook, sheet, '盤點資料');
-                        window.XLSX.writeFile(workbook, buildInventoryExportFilename(exportSessionId, timestamp, 'xlsx'));
+                        window.XLSX.writeFile(
+                            workbook,
+                            buildInventoryExportFilename(exportSessionId, timestamp, 'xlsx'),
+                            { cellStyles: true }
+                        );
                     } else {
                         const csvContent = sheetRows
                             .map(row => row.map(escapeCsvValue).join(','))
@@ -4050,7 +4101,7 @@
                 } finally {
                     setExportingSessionKey('');
                 }
-            }, [buildInventoryColumnWidths, buildInventoryExportFilename, buildInventoryExportTimestamp, downloadExportBlob, escapeCsvValue, runScript]);
+            }, [applyInventoryExcelFormatting, buildInventoryColumnWidths, buildInventoryExcelRows, buildInventoryExportFilename, buildInventoryExportTimestamp, downloadExportBlob, escapeCsvValue, runScript]);
 
             const renderHistoryContent = () => {
                 if (isHistoryLoading) {
