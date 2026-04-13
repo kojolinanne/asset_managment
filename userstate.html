@@ -2151,7 +2151,7 @@
             return {
                 result: normalizeInventoryInitialResult(initialResult),
                 remarks: '',
-                ismsExpanded: isItAsset,
+                ismsExpanded: true,
                 isItAsset: isItAsset,
                 isIsoScope: !isBatch && !!asset && String(asset.isIsoScope || '').trim() === '是',
                 selectedIsmsAssetId: !isBatch && asset ? String(asset.ismsAssetId || '').trim() : '',
