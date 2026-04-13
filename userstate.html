@@ -5832,9 +5832,9 @@
         // AssetTable 組件
         const AssetTable = ({ assets, isAdmin, currentUserEmail, isInventoryTaskOnly, inventoryStatusByAsset, onCancel, onRestore, onOpenTransferModal, onOpenLendingModal, onOpenScrapModal, onOpenEditModal, onOpenStatusDetail, onOpenInventoryModal, selectedAssetIds = [], onAssetSelect, onSelectAll, groupProxyEnabled = false, groupMemberEmailsLower = [] }) => {
 
-            // ✨ 分頁設定
             const ROWS_PER_PAGE = 500;
             const [currentPage, setCurrentPage] = useState(1);
+            const [expandedAssetIds, setExpandedAssetIds] = useState([]);
             const inventoryStatusStyles = {
                 '未盤點': 'text-teal-600 hover:text-teal-800',
                 '正常': 'text-emerald-600 hover:text-emerald-800',
@@ -5842,16 +5842,19 @@
                 '損壞': 'text-orange-600 hover:text-orange-800',
                 '過舊': 'text-amber-600 hover:text-amber-800'
             };
+            const normalizedCurrentEmail = String(currentUserEmail || '').toLowerCase().trim();
             const resolveInventoryButtonClass = (status) => (
                 inventoryStatusStyles[status] || 'text-slate-500 hover:text-slate-700'
             );
 
-            // ✨ 當 assets 變化時（篩選條件改變），重置頁碼
             useEffect(() => {
                 setCurrentPage(1);
             }, [assets]);
 
-            // ✨ 計算分頁資料
+            useEffect(() => {
+                setExpandedAssetIds([]);
+            }, [assets, currentPage]);
+
             const totalPages = useMemo(() => {
                 return Math.max(1, Math.ceil((assets?.length || 0) / ROWS_PER_PAGE));
             }, [assets]);
@@ -5863,15 +5866,246 @@
                 return assets.slice(start, end);
             }, [assets, currentPage]);
 
-            // 計算可選資產（僅在庫）
             const selectableAssets = useMemo(() => {
                 return assets ? assets.filter(a => a.status === '在庫') : [];
             }, [assets]);
 
-            // 計算全選狀態
             const isAllSelected = selectableAssets.length > 0 &&
                 selectableAssets.every(a => selectedAssetIds.includes(a.assetId));
             const isPartialSelected = selectableAssets.some(a => selectedAssetIds.includes(a.assetId)) && !isAllSelected;
+
+            const toggleExpandedAsset = useCallback((assetId) => {
+                setExpandedAssetIds(prev => (
+                    prev.includes(assetId)
+                        ? prev.filter(id => id !== assetId)
+                        : [...prev, assetId]
+                ));
+            }, []);
+
+            const buildAssetState = useCallback((asset) => {
+                const isTask = typeof isInventoryTaskOnly === 'function'
+                    ? isInventoryTaskOnly(asset)
+                    : false;
+                const isOwner = normalizedCurrentEmail &&
+                    (normalizedCurrentEmail === String(asset.leaderEmail || '').toLowerCase().trim() ||
+                        normalizedCurrentEmail === String(asset.userEmail || '').toLowerCase().trim());
+                const canCancel = !isTask && (isAdmin || isOwner);
+                const isSelectable = asset.status === '在庫';
+                const isSelected = selectedAssetIds.includes(asset.assetId);
+                const assetLeaderEmail = String(asset.leaderEmail || '').toLowerCase().trim();
+                const isGroupMemberAsset = groupProxyEnabled &&
+                    assetLeaderEmail !== normalizedCurrentEmail &&
+                    groupMemberEmailsLower.includes(assetLeaderEmail);
+
+                let rowBaseClass = '';
+                let borderClass = '';
+                let cardSurfaceClass = 'border-slate-200 bg-white';
+
+                if (isTask && isGroupMemberAsset) {
+                    rowBaseClass = 'bg-teal-50';
+                    borderClass = 'border-l-4 border-l-blue-500';
+                    cardSurfaceClass = 'border-sky-200 bg-gradient-to-br from-teal-50 via-white to-sky-50';
+                } else if (isTask) {
+                    rowBaseClass = 'bg-teal-50';
+                    cardSurfaceClass = 'border-teal-200 bg-gradient-to-br from-teal-50 via-white to-white';
+                } else if (isGroupMemberAsset) {
+                    rowBaseClass = 'bg-blue-50';
+                    borderClass = 'border-l-4 border-l-blue-400';
+                    cardSurfaceClass = 'border-blue-200 bg-gradient-to-br from-blue-50 via-white to-white';
+                }
+
+                const rowHoverClass = isTask ? 'hover:bg-teal-100' : 'hover:bg-slate-50';
+                const rowSelectedClass = isSelected ? 'ring-1 ring-blue-200 ring-inset' : '';
+                const statusBadgeClass = STATUS_COLORS[asset.status] || 'bg-slate-100 text-slate-700 border-slate-200';
+                const statusDetailType = STATUS_DETAIL_TYPES[asset.status];
+                const canOpenStatusDetail = statusDetailType && typeof onOpenStatusDetail === 'function';
+                const inventoryEntry = inventoryStatusByAsset?.[asset.assetId];
+                const inventoryStatus = inventoryEntry ? (inventoryEntry.status || '未盤點') : '';
+                const inventorySessionCount = inventoryEntry && typeof inventoryEntry.sessionCount === 'number'
+                    ? inventoryEntry.sessionCount
+                    : 0;
+                const inventoryTitle = inventoryStatus
+                    ? `盤點狀態：${inventoryStatus}${inventorySessionCount > 0 ? `（進行中會話 ${inventorySessionCount} 個）` : ''}`
+                    : '盤點確認';
+
+                return {
+                    asset,
+                    isTask,
+                    canCancel,
+                    isSelectable,
+                    isSelected,
+                    isGroupMemberAsset,
+                    rowBaseClass,
+                    borderClass,
+                    rowHoverClass,
+                    rowSelectedClass,
+                    cardSurfaceClass,
+                    statusBadgeClass,
+                    canOpenStatusDetail,
+                    inventoryEntry,
+                    inventoryStatus,
+                    inventorySessionCount,
+                    inventoryTitle,
+                    inventoryButtonClass: resolveInventoryButtonClass(inventoryStatus)
+                };
+            }, [
+                groupMemberEmailsLower,
+                groupProxyEnabled,
+                inventoryStatusByAsset,
+                isAdmin,
+                isInventoryTaskOnly,
+                normalizedCurrentEmail,
+                onOpenStatusDetail,
+                selectedAssetIds
+            ]);
+
+            const renderStatusBadge = (assetState, mobile = false) => {
+                const badgeClassName = `inline-flex items-center gap-1.5 rounded-full border font-medium whitespace-nowrap ${
+                    mobile ? 'px-2.5 py-1 text-[11px]' : 'px-2.5 py-1 text-xs'
+                } ${assetState.statusBadgeClass}`;
+
+                if (assetState.canOpenStatusDetail) {
+                    return (
+                        <button
+                            type="button"
+                            onClick={(event) => {
+                                if (mobile) event.stopPropagation();
+                                onOpenStatusDetail(assetState.asset);
+                            }}
+                            className={`${badgeClassName} cursor-pointer transition-shadow hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-200`}
+                            title={`查看${assetState.asset.status}詳情`}
+                            aria-label={`查看 ${assetState.asset.assetId} ${assetState.asset.status} 詳情`}
+                        >
+                            <span>{assetState.asset.status}</span>
+                            <i className="fa-solid fa-circle-info text-[10px]"></i>
+                        </button>
+                    );
+                }
+
+                return (
+                    <span className={badgeClassName}>
+                        {assetState.asset.status}
+                    </span>
+                );
+            };
+
+            const renderActionButtons = (assetState, mobile = false) => {
+                const asset = assetState.asset;
+                const actionContainerClass = mobile
+                    ? 'flex flex-wrap gap-2'
+                    : 'flex justify-start gap-2';
+                const actionButtonClass = (tone) => (
+                    mobile
+                        ? `inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold ${tone}`
+                        : `${tone} transition-colors p-1`
+                );
+                const handleAction = (callback) => (event) => {
+                    if (mobile) event.stopPropagation();
+                    if (typeof callback === 'function') {
+                        callback();
+                    }
+                };
+
+                return (
+                    <div className={actionContainerClass}>
+                        {isAdmin && (
+                            <button
+                                type="button"
+                                onClick={handleAction(() => onOpenEditModal(asset))}
+                                className={actionButtonClass(mobile ? 'border-amber-200 bg-amber-50 text-amber-700' : 'text-amber-600 hover:text-amber-800')}
+                                title="修改基本資料"
+                            >
+                                <i className="fa-solid fa-pen-to-square text-base"></i>
+                                {mobile && <span>修改</span>}
+                            </button>
+                        )}
+
+                        {!assetState.isTask && asset.status === '在庫' && (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={handleAction(() => onOpenTransferModal(asset))}
+                                    className={actionButtonClass(mobile ? 'border-blue-200 bg-blue-50 text-blue-700' : 'text-blue-600 hover:text-blue-800')}
+                                    title="轉移"
+                                >
+                                    <i className="fa-solid fa-right-left text-base"></i>
+                                    {mobile && <span>轉移</span>}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleAction(() => onOpenLendingModal(asset))}
+                                    className={actionButtonClass(mobile ? 'border-purple-200 bg-purple-50 text-purple-700' : 'text-purple-600 hover:text-purple-800')}
+                                    title="出借"
+                                >
+                                    <i className="fa-solid fa-hand-holding-hand text-base"></i>
+                                    {mobile && <span>出借</span>}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleAction(() => onOpenScrapModal(asset))}
+                                    className={actionButtonClass(mobile ? 'border-rose-200 bg-rose-50 text-rose-700' : 'text-red-600 hover:text-red-800')}
+                                    title="報廢"
+                                >
+                                    <i className="fa-regular fa-trash-can text-base"></i>
+                                    {mobile && <span>報廢</span>}
+                                </button>
+                            </>
+                        )}
+
+                        {assetState.inventoryEntry && (
+                            <button
+                                type="button"
+                                onClick={handleAction(() => onOpenInventoryModal && onOpenInventoryModal(asset))}
+                                className={actionButtonClass(mobile ? 'border-teal-200 bg-teal-50 text-teal-700' : assetState.inventoryButtonClass)}
+                                title={assetState.inventoryTitle}
+                                aria-label={assetState.inventoryTitle}
+                            >
+                                <i className="fa-solid fa-clipboard-check text-base"></i>
+                                {mobile && <span>盤點</span>}
+                            </button>
+                        )}
+
+                        {assetState.isTask && mobile && (
+                            <span className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-medium text-slate-500">
+                                <i className="fa-solid fa-lock text-sm"></i>
+                                <span>僅限盤點</span>
+                            </span>
+                        )}
+
+                        {assetState.isTask && !mobile && (
+                            <span className="text-slate-400 p-1" title="僅限盤點">
+                                <i className="fa-solid fa-lock text-lg"></i>
+                            </span>
+                        )}
+
+                        {assetState.canCancel && (asset.status === '待接收' || asset.status === '轉移中' || asset.status === '報廢中') && (
+                            <button
+                                type="button"
+                                onClick={handleAction(() => onCancel(asset.assetId, asset.status))}
+                                className={mobile
+                                    ? 'inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700'
+                                    : 'px-3 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium'}
+                            >
+                                <i className="fa-solid fa-ban text-sm"></i>
+                                {mobile ? <span>取消</span> : '取消'}
+                            </button>
+                        )}
+
+                        {isAdmin && asset.status === '已報廢' && (
+                            <button
+                                type="button"
+                                onClick={handleAction(() => onRestore(asset.assetId))}
+                                className={mobile
+                                    ? 'inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs font-semibold text-yellow-700'
+                                    : 'px-3 py-1 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors text-sm font-medium'}
+                            >
+                                <i className="fa-solid fa-rotate-left text-sm"></i>
+                                {mobile ? <span>回溯</span> : '回溯'}
+                            </button>
+                        )}
+                    </div>
+                );
+            };
 
             if (!assets || assets.length === 0) {
                 return (
@@ -5883,17 +6117,34 @@
 
             return (
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    {/* ✨ 分頁控制器 - 位於表格上方 */}
-                    <div className="flex justify-between items-center px-4 py-2 bg-slate-50 border-b border-slate-200">
-                        <span className="text-sm text-slate-600">
-                            第 <span className="font-semibold text-blue-600">{currentPage}</span> / {totalPages} 頁（共 <span className="font-semibold text-blue-600">{assets.length}</span> 筆）
-                        </span>
+                    <div className="flex flex-col gap-3 px-4 py-3 bg-slate-50 border-b border-slate-200 md:flex-row md:items-center md:justify-between">
+                        <div className="flex flex-col gap-2">
+                            <span className="text-sm text-slate-600">
+                                第 <span className="font-semibold text-blue-600">{currentPage}</span> / {totalPages} 頁（共 <span className="font-semibold text-blue-600">{assets.length}</span> 筆）
+                            </span>
+                            <div className="md:hidden flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                                <label className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-slate-600">
+                                    <input
+                                        type="checkbox"
+                                        checked={isAllSelected}
+                                        ref={(el) => { if (el) el.indeterminate = isPartialSelected; }}
+                                        onChange={(e) => onSelectAll && onSelectAll(e.target.checked)}
+                                        className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                        title={`全選所有「在庫」資產 (${selectableAssets.length} 筆)`}
+                                    />
+                                    <span>全選在庫</span>
+                                </label>
+                                <span>本頁 {paginatedAssets.length} 筆</span>
+                                <span>已選 {selectedAssetIds.length} 筆</span>
+                            </div>
+                        </div>
+
                         {totalPages > 1 && (
-                            <div className="flex gap-2">
+                            <div className="grid grid-cols-2 gap-2 md:flex">
                                 <button
                                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                     disabled={currentPage <= 1}
-                                    className={`px-3 py-1 text-sm rounded border ${
+                                    className={`px-3 py-2 text-sm rounded-lg border ${
                                         currentPage <= 1
                                             ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
                                             : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
@@ -5904,7 +6155,7 @@
                                 <button
                                     onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                     disabled={currentPage >= totalPages}
-                                    className={`px-3 py-1 text-sm rounded border ${
+                                    className={`px-3 py-2 text-sm rounded-lg border ${
                                         currentPage >= totalPages
                                             ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
                                             : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
@@ -5915,11 +6166,161 @@
                             </div>
                         )}
                     </div>
-                    <div className="overflow-x-auto">
+
+                    <div className="md:hidden p-3 space-y-3 bg-slate-50/60">
+                        {paginatedAssets.map((asset, index) => {
+                            const rowKey = `${asset.assetId}-${index}`;
+                            const assetState = buildAssetState(asset);
+                            const isExpanded = expandedAssetIds.includes(rowKey);
+                            const detailsId = `asset-mobile-details-${asset.assetId}-${index}`;
+                            const systemBadgeClass = asset.systemCategory === '舊系統'
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                : 'bg-blue-50 text-blue-700 border border-blue-200';
+
+                            return (
+                                <div
+                                    key={rowKey}
+                                    className={`rounded-2xl border shadow-sm overflow-hidden transition-all ${assetState.cardSurfaceClass} ${assetState.borderClass} ${assetState.rowSelectedClass}`}
+                                >
+                                    <div
+                                        role="button"
+                                        tabIndex={0}
+                                        onClick={() => toggleExpandedAsset(rowKey)}
+                                        onKeyDown={(event) => {
+                                            if (event.currentTarget !== event.target) return;
+                                            if (event.key === 'Enter' || event.key === ' ') {
+                                                event.preventDefault();
+                                                toggleExpandedAsset(rowKey);
+                                            }
+                                        }}
+                                        className="w-full text-left px-4 py-4 cursor-pointer"
+                                        aria-expanded={isExpanded}
+                                        aria-controls={detailsId}
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <div className="pt-1">
+                                                {assetState.isSelectable ? (
+                                                    <input
+                                                        type="checkbox"
+                                                        className="asset-checkbox w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                        value={asset.assetId}
+                                                        checked={assetState.isSelected}
+                                                        onClick={(event) => event.stopPropagation()}
+                                                        onChange={() => onAssetSelect && onAssetSelect(asset.assetId)}
+                                                        data-is-task={assetState.isTask ? 'true' : 'false'}
+                                                    />
+                                                ) : (
+                                                    <span className="inline-flex h-4 w-4 items-center justify-center text-slate-300" title="僅「在庫」資產可選取">-</span>
+                                                )}
+                                            </div>
+
+                                            <div className="min-w-0 flex-1 space-y-3">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">Asset</div>
+                                                        <div className="mt-1 font-mono text-sm font-semibold text-slate-800 break-all">{asset.assetId}</div>
+                                                    </div>
+                                                    <div className="flex flex-col items-end gap-2">
+                                                        {renderStatusBadge(assetState, true)}
+                                                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${systemBadgeClass}`}>
+                                                            {asset.systemCategory}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-3 text-sm">
+                                                    <div className="min-w-0">
+                                                        <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">使用人</div>
+                                                        <div className="mt-1 text-slate-700 truncate">{asset.userName || '-'}</div>
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">保管人</div>
+                                                        <div className="mt-1 text-slate-700 truncate">{asset.leader || '-'}</div>
+                                                    </div>
+                                                    <div className="col-span-2 min-w-0">
+                                                        <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">位置</div>
+                                                        <div className="mt-1 text-slate-700 truncate">{asset.location || '-'}</div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        {assetState.isTask && (
+                                                            <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2 py-1 font-medium text-teal-700">
+                                                                <i className="fa-solid fa-clipboard-check text-[10px]"></i>
+                                                                <span>盤點任務</span>
+                                                            </span>
+                                                        )}
+                                                        {assetState.isGroupMemberAsset && (
+                                                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-1 font-medium text-blue-700">
+                                                                <i className="fa-solid fa-users text-[10px]"></i>
+                                                                <span>同組資產</span>
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <span className="inline-flex items-center gap-1 font-medium text-slate-500">
+                                                        <span>{isExpanded ? '收合明細' : '展開明細'}</span>
+                                                        <i className={`fa-solid fa-chevron-${isExpanded ? 'up' : 'down'} text-[10px]`}></i>
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {isExpanded && (
+                                        <div id={detailsId} className="border-t border-slate-200/80 bg-white/90 px-4 py-4 space-y-4">
+                                            <div className="grid grid-cols-1 gap-3">
+                                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                                    <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">財產名稱</div>
+                                                    <div className="mt-1 text-sm font-semibold text-slate-800 break-words">{asset.assetName || '-'}</div>
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                                        <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{getAssetAliasLabel(asset)}</div>
+                                                        <div className="mt-1 text-sm text-slate-700 break-all">
+                                                            <AssetAliasValue asset={asset} />
+                                                        </div>
+                                                    </div>
+                                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                                        <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">型號/廠牌</div>
+                                                        <div className="mt-1 text-sm text-slate-700 break-all">{asset.modelBrand || '-'}</div>
+                                                    </div>
+                                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                                        <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">組別</div>
+                                                        <div className="mt-1 text-sm text-slate-700">{asset.group || '未分組'}</div>
+                                                    </div>
+                                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                                        <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">財產類別</div>
+                                                        <div className="mt-1 text-sm text-slate-700">{asset.category || '-'}</div>
+                                                    </div>
+                                                </div>
+
+                                                {assetState.inventoryEntry && (
+                                                    <div className="rounded-xl border border-teal-100 bg-teal-50 px-3 py-3 text-sm text-teal-800">
+                                                        <div className="font-medium">盤點狀態：{assetState.inventoryStatus || '未盤點'}</div>
+                                                        {assetState.inventorySessionCount > 0 && (
+                                                            <div className="mt-1 text-xs text-teal-700">進行中會話 {assetState.inventorySessionCount} 個</div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">快速操作</div>
+                                                {renderActionButtons(assetState, true)}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    <div className="hidden md:block overflow-x-auto">
                         <table className="w-full text-left text-sm" id="asset-list">
                             <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
                                 <tr>
-                                    {/* 勾選欄位 - 全選 checkbox */}
                                     <th className="px-2 py-3 font-semibold text-slate-600 text-center w-10">
                                         <input
                                             type="checkbox"
@@ -5946,77 +6347,19 @@
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {paginatedAssets.map((asset, index) => {
-                                    const isTask = typeof isInventoryTaskOnly === 'function'
-                                        ? isInventoryTaskOnly(asset)
-                                        : false;
-                                    const normalizedCurrentEmail = String(currentUserEmail || '').toLowerCase();
-                                    const isOwner = normalizedCurrentEmail &&
-                                        (normalizedCurrentEmail === String(asset.leaderEmail || '').toLowerCase() ||
-                                            normalizedCurrentEmail === String(asset.userEmail || '').toLowerCase());
-                                    const canCancel = !isTask && (isAdmin || isOwner);
-                                    const isSelectable = asset.status === '在庫';
-                                    const isSelected = selectedAssetIds.includes(asset.assetId);
-
-                                    // ✨ 判斷是否為同組成員資產（使用 props 而非 window）
-                                    const assetLeaderEmail = String(asset.leaderEmail || '').toLowerCase().trim();
-                                    const isGroupMemberAsset = groupProxyEnabled &&
-                                        assetLeaderEmail !== normalizedCurrentEmail &&
-                                        groupMemberEmailsLower.includes(assetLeaderEmail);
-
-                                    // ✨ 複合背景色設計
-                                    let rowBaseClass = '';
-                                    let borderClass = '';
-
-                                    if (isTask && isGroupMemberAsset) {
-                                        // 同時滿足：青綠背景 + 藍色粗左邊框
-                                        rowBaseClass = 'bg-teal-50';
-                                        borderClass = 'border-l-4 border-l-blue-500';
-                                    } else if (isTask) {
-                                        // 僅盤點任務：青綠背景
-                                        rowBaseClass = 'bg-teal-50';
-                                    } else if (isGroupMemberAsset) {
-                                        // 僅同組資產：藍色背景 + 藍色左邊框
-                                        rowBaseClass = 'bg-blue-50';
-                                        borderClass = 'border-l-4 border-l-blue-400';
-                                    }
-
-                                    const rowHoverClass = isTask ? 'hover:bg-teal-100' : 'hover:bg-slate-50';
-                                    const rowSelectedClass = isSelected ? 'ring-1 ring-blue-200 ring-inset' : '';
-                                    const statusBadgeClass = STATUS_COLORS[asset.status] || 'bg-slate-100 text-slate-700 border-slate-200';
-                                    const statusDetailType = STATUS_DETAIL_TYPES[asset.status];
-                                    const canOpenStatusDetail = statusDetailType && typeof onOpenStatusDetail === 'function';
-                                    const inventoryEntry = inventoryStatusByAsset?.[asset.assetId];
-                                    const inventoryStatus = inventoryEntry ? (inventoryEntry.status || '未盤點') : '';
-                                    const inventorySessionCount = inventoryEntry && typeof inventoryEntry.sessionCount === 'number'
-                                        ? inventoryEntry.sessionCount
-                                        : 0;
-                                    const inventoryTitle = inventoryStatus
-                                        ? `盤點狀態：${inventoryStatus}${inventorySessionCount > 0 ? `（進行中會話 ${inventorySessionCount} 個）` : ''}`
-                                        : '盤點確認';
-                                    const inventoryButtonClass = resolveInventoryButtonClass(inventoryStatus);
-                                    const inventoryButton = inventoryEntry ? (
-                                        <button
-                                            onClick={() => onOpenInventoryModal && onOpenInventoryModal(asset)}
-                                            className={`${inventoryButtonClass} transition-colors p-1`}
-                                            title={inventoryTitle}
-                                            aria-label={inventoryTitle}
-                                        >
-                                            <i className="fa-solid fa-clipboard-check text-lg"></i>
-                                        </button>
-                                    ) : null;
+                                    const assetState = buildAssetState(asset);
 
                                     return (
-                                        <tr key={`${asset.assetId}-${index}`} className={`${rowHoverClass} transition-colors ${rowBaseClass} ${borderClass} ${rowSelectedClass} ${!isTask && isSelected ? 'bg-blue-50' : ''}`}>
-                                            {/* 勾選欄位 */}
+                                        <tr key={`${asset.assetId}-${index}`} className={`${assetState.rowHoverClass} transition-colors ${assetState.rowBaseClass} ${assetState.borderClass} ${assetState.rowSelectedClass} ${!assetState.isTask && assetState.isSelected ? 'bg-blue-50' : ''}`}>
                                             <td className="px-2 py-3 text-center align-top">
-                                                {isSelectable ? (
+                                                {assetState.isSelectable ? (
                                                     <input
                                                         type="checkbox"
                                                         className="asset-checkbox w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                                                         value={asset.assetId}
-                                                        checked={isSelected}
+                                                        checked={assetState.isSelected}
                                                         onChange={() => onAssetSelect && onAssetSelect(asset.assetId)}
-                                                        data-is-task={isTask ? 'true' : 'false'}
+                                                        data-is-task={assetState.isTask ? 'true' : 'false'}
                                                     />
                                                 ) : (
                                                     <span className="text-slate-300" title="僅「在庫」資產可選取">-</span>
@@ -6035,17 +6378,15 @@
                                             <td className="px-2 py-3 font-medium text-slate-800 align-top w-[160px] max-w-[160px]">
                                                 <div className="flex items-start gap-2">
                                                     <div className="flex items-center gap-1 flex-shrink-0">
-                                                        {/* ✨ 盤點任務圖示 */}
-                                                        {isTask && (
+                                                        {assetState.isTask && (
                                                             <i className="fa-solid fa-clipboard-check text-teal-600" title="盤點任務"></i>
                                                         )}
-                                                        {/* ✨ 同組資產圖示 */}
-                                                        {isGroupMemberAsset && (
+                                                        {assetState.isGroupMemberAsset && (
                                                             <i className="fa-solid fa-users text-blue-500" title={`同組成員資產（保管人：${asset.leader}）`}></i>
                                                         )}
                                                     </div>
                                                     <div className="line-clamp-2 min-w-0 flex-1" title={asset.assetName}>{asset.assetName}</div>
-                                                    {isTask && (
+                                                    {assetState.isTask && (
                                                         <span className="inline-flex items-center rounded-full bg-teal-100 text-teal-700 text-xs font-semibold px-2 py-0.5 whitespace-nowrap">
                                                             盤點任務
                                                         </span>
@@ -6076,93 +6417,10 @@
                                                 </span>
                                             </td>
                                             <td className="px-2 py-3 align-top">
-                                                {canOpenStatusDetail ? (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => onOpenStatusDetail(asset)}
-                                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap cursor-pointer transition-shadow hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-200 ${statusBadgeClass}`}
-                                                        title={`查看${asset.status}詳情`}
-                                                        aria-label={`查看 ${asset.assetId} ${asset.status} 詳情`}
-                                                    >
-                                                        <span>{asset.status}</span>
-                                                        <i className="fa-solid fa-circle-info text-[10px]"></i>
-                                                    </button>
-                                                ) : (
-                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border whitespace-nowrap ${statusBadgeClass}`}>
-                                                        {asset.status}
-                                                    </span>
-                                                )}
+                                                {renderStatusBadge(assetState)}
                                             </td>
                                             <td className="px-2 py-3 text-left align-top whitespace-nowrap">
-                                                {/* 操作按鈕區域 */}
-                                                <div className="flex justify-start gap-2">
-                                                    {/* 修改按鈕 - 僅管理員可見 */}
-                                                    {isAdmin && (
-                                                        <button
-                                                            onClick={() => onOpenEditModal(asset)}
-                                                            className="text-amber-600 hover:text-amber-800 transition-colors p-1"
-                                                            title="修改基本資料"
-                                                        >
-                                                            <i className="fa-solid fa-pen-to-square text-lg"></i>
-                                                        </button>
-                                                    )}
-                                                    {/* 在庫資產：顯示轉移、出借、報廢按鈕 */}
-                                                    {!isTask && asset.status === '在庫' && (
-                                                        <>
-                                                            <button
-                                                                onClick={() => onOpenTransferModal(asset)}
-                                                                className="text-blue-600 hover:text-blue-800 transition-colors p-1"
-                                                                title="轉移"
-                                                            >
-                                                                <i className="fa-solid fa-right-left text-lg"></i>
-                                                            </button>
-                                                            <button
-                                                                onClick={() => onOpenLendingModal(asset)}
-                                                                className="text-purple-600 hover:text-purple-800 transition-colors p-1"
-                                                                title="出借"
-                                                            >
-                                                                <i className="fa-solid fa-hand-holding-hand text-lg"></i>
-                                                            </button>
-                                                            <button
-                                                                onClick={() => onOpenScrapModal(asset)}
-                                                                className="text-red-600 hover:text-red-800 transition-colors p-1"
-                                                                title="報廢"
-                                                            >
-                                                                <i className="fa-regular fa-trash-can text-lg"></i>
-                                                            </button>
-                                                            {inventoryButton}
-                                                        </>
-                                                    )}
-                                                    {!isTask && asset.status !== '在庫' && inventoryButton}
-                                                    {isTask && (
-                                                        <>
-                                                            {inventoryButton}
-                                                            <span className="text-slate-400 p-1" title="僅限盤點">
-                                                                <i className="fa-solid fa-lock text-lg"></i>
-                                                            </span>
-                                                        </>
-                                                    )}
-
-                                                    {/* 待接收/轉移中/報廢中：顯示取消按鈕 */}
-                                                    {canCancel && (asset.status === '待接收' || asset.status === '轉移中' || asset.status === '報廢中') && (
-                                                        <button
-                                                            onClick={() => onCancel(asset.assetId, asset.status)}
-                                                            className="px-3 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium"
-                                                        >
-                                                            取消
-                                                        </button>
-                                                    )}
-
-                                                    {/* 已報廢：管理員可回溯 */}
-                                                    {isAdmin && asset.status === '已報廢' && (
-                                                        <button
-                                                            onClick={() => onRestore(asset.assetId)}
-                                                            className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors text-sm font-medium"
-                                                        >
-                                                            回溯
-                                                        </button>
-                                                    )}
-                                                </div>
+                                                {renderActionButtons(assetState)}
                                             </td>
                                         </tr>
                                     );
