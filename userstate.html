@@ -2487,7 +2487,7 @@
         }
 
         const AssetCartStore = (() => {
-            let mode = 'STANDARD';
+            let mode = 'ADVANCED';
             let items = [];
             let pendingAssetId = null;
             let listeners = new Set();
@@ -2599,7 +2599,7 @@
                     await db.init();
                     const payload = await db.loadCart();
                     if (payload) {
-                        mode = payload.mode === 'ADVANCED' ? 'ADVANCED' : 'STANDARD';
+                        mode = payload.mode === 'STANDARD' ? 'STANDARD' : 'ADVANCED';
                         const restored = Array.isArray(payload.items) ? payload.items : [];
                         items = restored.map(normalizeItem).filter(Boolean);
                     }
@@ -11635,7 +11635,7 @@
             const addAssetDropdownLoadRef = useRef(null);
             const addAssetDropdownRequestRef = useRef(0);
             const [cartSnapshot, setCartSnapshot] = useState(() => (
-                window.AssetCartStore ? window.AssetCartStore.getSnapshot() : { mode: 'STANDARD', items: [], pendingAssetId: null }
+                window.AssetCartStore ? window.AssetCartStore.getSnapshot() : { mode: 'ADVANCED', items: [], pendingAssetId: null }
             ));
             const [isScannerOpen, setIsScannerOpen] = useState(false);
             const [actionPanelState, setActionPanelState] = useState({
