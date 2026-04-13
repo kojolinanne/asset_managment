@@ -909,7 +909,8 @@ function getUserStateData(forceUserScope) {
     const mapping = ismsMappings[assetId] || {};
     const defaultGroup = asset.defaultGroup ? String(asset.defaultGroup).trim() : '';
     const mappedUserGroup = asset.userName ? (userNameToGroupMap[String(asset.userName).trim()] || '') : '';
-    const groupName = defaultGroup || mappedUserGroup || '未分組';
+    const mappedLeaderGroup = asset.leaderName ? (userNameToGroupMap[String(asset.leaderName).trim()] || '') : '';
+    const groupName = defaultGroup || mappedUserGroup || mappedLeaderGroup || '未分組';
     return {
       assetId: asset.assetId,
       assetName: asset.assetName,
