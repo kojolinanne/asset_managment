@@ -22,6 +22,9 @@
 
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 
   <style>
     :root {
@@ -462,6 +465,104 @@
       text-underline-offset: 2px;
     }
     .dup-item-link:hover { color: var(--accent-600); }
+
+    /* 匯出 Modal */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      display: flex; align-items: center; justify-content: center;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal-box {
+      background: white;
+      border-radius: 18px;
+      box-shadow: 0 24px 64px rgba(15, 23, 42, 0.22);
+      width: 480px; max-width: calc(100vw - 32px);
+      padding: 28px 28px 24px;
+      transform: translateY(16px) scale(0.98);
+      transition: transform 0.22s;
+    }
+    .modal-overlay.open .modal-box { transform: translateY(0) scale(1); }
+    .modal-title { font-size: 17px; font-weight: 700; color: var(--ink-900); margin-bottom: 4px; }
+    .modal-sub   { font-size: 13px; color: var(--ink-500); margin-bottom: 20px; }
+
+    .fmt-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+    .fmt-card {
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 10px 14px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s;
+      position: relative;
+    }
+    .fmt-card:hover { border-color: #94a3b8; background: #f8fafc; }
+    .fmt-card.selected { border-color: var(--accent-500); background: var(--accent-50); }
+    .fmt-card .fmt-icon {
+      font-size: 26px;
+      margin-bottom: 8px;
+      display: block;
+    }
+    .fmt-card .fmt-name { font-size: 13px; font-weight: 700; color: var(--ink-900); }
+    .fmt-card .fmt-desc { font-size: 11px; color: var(--ink-500); margin-top: 3px; line-height: 1.4; }
+    .fmt-card .fmt-check {
+      position: absolute; top: 8px; right: 8px;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: var(--accent-500);
+      color: white;
+      font-size: 10px;
+      display: none; align-items: center; justify-content: center;
+    }
+    .fmt-card.selected .fmt-check { display: flex; }
+
+    .modal-filename-label { font-size: 13px; font-weight: 600; color: var(--ink-700); margin-bottom: 6px; }
+    .modal-filename-wrap { display: flex; align-items: center; gap: 0; margin-bottom: 20px; }
+    .modal-filename-wrap input {
+      flex: 1;
+      border: 1px solid var(--border);
+      border-right: none;
+      border-radius: 8px 0 0 8px;
+      padding: 9px 12px;
+      font-size: 14px;
+      color: var(--ink-900);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .modal-filename-wrap input:focus { border-color: var(--accent-500); }
+    .modal-filename-ext {
+      padding: 9px 12px;
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+      border-radius: 0 8px 8px 0;
+      font-size: 13px;
+      color: var(--ink-500);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .modal-footer { display: flex; justify-content: flex-end; gap: 10px; }
+    .btn-modal-cancel {
+      padding: 10px 20px; border-radius: 8px;
+      border: 1px solid var(--border); background: white;
+      color: var(--ink-700); font-weight: 500; font-size: 14px;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .btn-modal-cancel:hover { background: #f8fafc; }
+    .btn-modal-confirm {
+      padding: 10px 24px; border-radius: 8px;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: white; font-weight: 600; font-size: 14px;
+      cursor: pointer; transition: all 0.2s;
+      display: inline-flex; align-items: center; gap: 8px;
+      border: none;
+    }
+    .btn-modal-confirm:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(37,99,235,0.3); }
+    .btn-modal-confirm:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
   </style>
 </head>
 <body>
@@ -485,8 +586,8 @@
         <button id="btnRefresh" class="btn-secondary" title="重新整理">
           <i class="fa-solid fa-rotate"></i><span class="hidden sm:inline">重新整理</span>
         </button>
-        <button id="btnExport" class="btn-primary" title="匯出目前顯示資料為 CSV">
-          <i class="fa-solid fa-file-csv"></i><span class="hidden sm:inline">匯出 CSV</span>
+        <button id="btnExport" class="btn-primary" title="匯出目前顯示資料">
+          <i class="fa-solid fa-file-export"></i><span class="hidden sm:inline">匯出</span>
         </button>
       </div>
     </header>
@@ -606,6 +707,48 @@
   </div>
 
   <div id="toast" class="toast"></div>
+
+  <!-- Export Modal -->
+  <div class="modal-overlay" id="exportModal">
+    <div class="modal-box">
+      <div class="modal-title"><i class="fa-solid fa-file-export mr-2 text-blue-600"></i>匯出資訊資產清單</div>
+      <div class="modal-sub" id="exportModalSub"></div>
+
+      <div class="fmt-grid">
+        <div class="fmt-card selected" data-fmt="csv">
+          <span class="fmt-check"><i class="fa-solid fa-check"></i></span>
+          <span class="fmt-icon" style="color:#16a34a"><i class="fa-solid fa-file-csv"></i></span>
+          <div class="fmt-name">CSV</div>
+          <div class="fmt-desc">通用格式<br>Excel 可直接開啟</div>
+        </div>
+        <div class="fmt-card" data-fmt="xlsx">
+          <span class="fmt-check"><i class="fa-solid fa-check"></i></span>
+          <span class="fmt-icon" style="color:#0369a1"><i class="fa-solid fa-file-excel"></i></span>
+          <div class="fmt-name">Excel</div>
+          <div class="fmt-desc">含欄位格式<br>支援篩選排序</div>
+        </div>
+        <div class="fmt-card" data-fmt="pdf">
+          <span class="fmt-check"><i class="fa-solid fa-check"></i></span>
+          <span class="fmt-icon" style="color:#dc2626"><i class="fa-solid fa-file-pdf"></i></span>
+          <div class="fmt-name">PDF</div>
+          <div class="fmt-desc">列印用格式<br>橫向 A3 版面</div>
+        </div>
+      </div>
+
+      <div class="modal-filename-label">檔案名稱</div>
+      <div class="modal-filename-wrap">
+        <input id="exportFilename" type="text" />
+        <span class="modal-filename-ext" id="exportExt">.csv</span>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-modal-cancel" id="btnExportCancel">取消</button>
+        <button class="btn-modal-confirm" id="btnExportConfirm">
+          <i class="fa-solid fa-download"></i>確認匯出
+        </button>
+      </div>
+    </div>
+  </div>
 
   <script>
     const state = {
@@ -939,30 +1082,126 @@
       applyFilters();
     }
 
-    function exportCsv() {
-      if (!state.filtered.length) {
-        showToast('沒有資料可匯出');
-        return;
-      }
-      const headers = ['資訊資產編號', '類別', '名稱', '說明', '數量', '地點', '權責單位', '機密性', '完整性', '可用性', '資產價值', '使用狀態'];
-      const rows = state.filtered.map(a => [
+    // ── 匯出共用資料 ──────────────────────────────
+    const EXPORT_HEADERS = ['資訊資產編號','類別','名稱','說明','數量','地點','權責單位','機密性','完整性','可用性','資產價值','使用狀態'];
+    function getExportRows() {
+      return state.filtered.map(a => [
         a.ismsAssetId, a.category, a.name, a.description, a.quantity,
         a.location, a.responsibleUnit, a.confidentiality, a.integrity, a.availability, a.assetValue, a.status
-      ]);
-      const csv = [headers, ...rows]
-        .map(r => r.map(c => `"${String(c == null ? '' : c).replace(/"/g, '""')}"`).join(','))
+      ].map(v => v == null ? '' : String(v)));
+    }
+
+    // ── CSV ───────────────────────────────────────
+    function doExportCsv(filename) {
+      const rows = getExportRows();
+      const csv = [EXPORT_HEADERS, ...rows]
+        .map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(','))
         .join('\n');
-      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+      triggerDownload(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' }), filename + '.csv');
+    }
+
+    // ── Excel (SheetJS) ───────────────────────────
+    function doExportXlsx(filename) {
+      const wb = XLSX.utils.book_new();
+      const wsData = [EXPORT_HEADERS, ...getExportRows()];
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      // 欄寬
+      ws['!cols'] = [10,12,22,40,6,14,14,8,8,8,8,12].map(w => ({ wch: w }));
+
+      // 標題列樣式（SheetJS Community 版不含樣式，留空）
+      XLSX.utils.book_append_sheet(wb, ws, '資訊資產清單');
+      XLSX.writeFile(wb, filename + '.xlsx');
+    }
+
+    // ── PDF (jsPDF + autoTable) ───────────────────
+    function doExportPdf(filename) {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
+
+      // 內嵌字型需要完整 CJK 字型，改以替代方案：
+      // 欄位名稱用英文，內容若有中文以原文輸出（jsPDF 預設字型不含 CJK，
+      // 需加 NotoSansCJK，但體積過大；採用外部 google font 替代 workaround）
+      const colHeaders = [
+        'ID','類別','名稱','說明','數量','地點','權責單位','機密性','完整性','可用性','資產價值','使用狀態'
+      ];
+      const rows = getExportRows();
+
+      doc.setFontSize(14);
+      doc.text('資訊資產清單', 14, 16);
+      doc.setFontSize(9);
+      doc.setTextColor(100);
+      doc.text(`匯出時間：${new Date().toLocaleString('zh-TW')}　共 ${rows.length} 筆`, 14, 22);
+
+      doc.autoTable({
+        head: [colHeaders],
+        body: rows,
+        startY: 26,
+        styles: { font: 'helvetica', fontSize: 8, cellPadding: 2.5, overflow: 'linebreak' },
+        headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: {
+          0:  { cellWidth: 22 },
+          1:  { cellWidth: 18 },
+          2:  { cellWidth: 30 },
+          3:  { cellWidth: 52 },
+          4:  { cellWidth: 10 },
+          5:  { cellWidth: 22 },
+          6:  { cellWidth: 22 },
+          7:  { cellWidth: 12 },
+          8:  { cellWidth: 12 },
+          9:  { cellWidth: 12 },
+          10: { cellWidth: 12 },
+          11: { cellWidth: 18 }
+        },
+        margin: { left: 14, right: 14 }
+      });
+
+      doc.save(filename + '.pdf');
+    }
+
+    function triggerDownload(blob, filename) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      const ts = new Date().toISOString().slice(0, 10);
-      a.href = url;
-      a.download = `資訊資產清單_${ts}.csv`;
-      document.body.appendChild(a);
-      a.click();
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      showToast(`已匯出 ${state.filtered.length} 筆`);
+    }
+
+    // ── Modal 控制 ────────────────────────────────
+    let selectedFmt = 'csv';
+
+    function openExportModal() {
+      if (!state.filtered.length) { showToast('沒有資料可匯出'); return; }
+      const ts = new Date().toISOString().slice(0, 10);
+      $('exportFilename').value = `資訊資產清單_${ts}`;
+      $('exportModalSub').textContent = `目前篩選共 ${state.filtered.length} 筆 / 全部 ${state.all.length} 筆`;
+      selectedFmt = 'csv';
+      document.querySelectorAll('.fmt-card').forEach(c => c.classList.toggle('selected', c.dataset.fmt === 'csv'));
+      $('exportExt').textContent = '.csv';
+      $('exportModal').classList.add('open');
+    }
+
+    function closeExportModal() {
+      $('exportModal').classList.remove('open');
+    }
+
+    function doExport() {
+      const filename = ($('exportFilename').value.trim()) || `資訊資產清單_${new Date().toISOString().slice(0, 10)}`;
+      const btn = $('btnExportConfirm');
+      btn.disabled = true;
+      try {
+        if (selectedFmt === 'csv')  doExportCsv(filename);
+        else if (selectedFmt === 'xlsx') doExportXlsx(filename);
+        else if (selectedFmt === 'pdf')  doExportPdf(filename);
+        showToast(`✓ 已匯出 ${state.filtered.length} 筆（${selectedFmt.toUpperCase()}）`);
+        closeExportModal();
+      } catch(e) {
+        showToast('匯出失敗：' + e.message);
+      } finally {
+        btn.disabled = false;
+      }
     }
 
     function detectAndRenderDuplicates() {
@@ -1086,7 +1325,21 @@
       $('filterValueMax').addEventListener('input', applyFilters);
       $('btnClear').addEventListener('click', clearFilters);
       $('btnRefresh').addEventListener('click', loadData);
-      $('btnExport').addEventListener('click', exportCsv);
+      $('btnExport').addEventListener('click', openExportModal);
+      $('btnExportCancel').addEventListener('click', closeExportModal);
+      $('btnExportConfirm').addEventListener('click', doExport);
+
+      // 格式卡片點擊
+      document.querySelectorAll('.fmt-card').forEach(card => {
+        card.addEventListener('click', () => {
+          selectedFmt = card.dataset.fmt;
+          document.querySelectorAll('.fmt-card').forEach(c => c.classList.toggle('selected', c === card));
+          $('exportExt').textContent = '.' + selectedFmt;
+        });
+      });
+
+      // 點 overlay 背景關閉
+      $('exportModal').addEventListener('click', e => { if (e.target === $('exportModal')) closeExportModal(); });
       $('thId').addEventListener('click', () => toggleSort('ismsAssetId'));
       $('thValue').addEventListener('click', () => toggleSort('assetValue'));
       $('dupToggle').addEventListener('click', () => $('dupPanel').classList.toggle('collapsed'));
