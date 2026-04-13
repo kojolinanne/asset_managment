@@ -274,11 +274,20 @@ function getAllAssets() {
   return allAssetObjects;
 }
 
+function buildAssetAliasFields_(asset) {
+  return {
+    assetAlias: String(asset?.assetAlias || ''),
+    productSerial: String(asset?.productSerial || ''),
+    sourceSheet: String(asset?.sourceSheet || '')
+  };
+}
+
 function createEmptyInventoryAssetContext_(assetId) {
   return {
     assetId: String(assetId || '').trim(),
     assetName: '',
     assetAlias: '',
+    productSerial: '',
     keeperName: '',
     userName: '',
     modelBrand: '',
@@ -320,6 +329,7 @@ function buildInventoryAssetContextMap_(assetIds) {
       assetId: assetId,
       assetName: String(asset.assetName || ''),
       assetAlias: String(asset.assetAlias || ''),
+      productSerial: String(asset.productSerial || ''),
       keeperName: String(asset.leaderName || ''),
       userName: String(asset.userName || ''),
       modelBrand: String(asset.modelBrand || ''),
@@ -903,6 +913,8 @@ function getUserStateData(forceUserScope) {
     return {
       assetId: asset.assetId,
       assetName: asset.assetName,
+      assetAlias: asset.assetAlias || '',
+      productSerial: asset.productSerial || '',
       modelBrand: asset.modelBrand || '',
       leader: asset.leaderName,
       leaderEmail: asset.leaderEmail, // ✨ Add leaderEmail
@@ -912,7 +924,7 @@ function getUserStateData(forceUserScope) {
       category: asset.assetCategory,
       group: groupName,
       userName: asset.userName || '無', // 使用者名稱，物品總表顯示「無」
-      sourceSheet: asset.sourceSheet,
+      sourceSheet: asset.sourceSheet || '',
       isItAsset: asset.isItAsset || '',  // ✨ ISMS：是否為資訊資產（X欄）
       isIsoScope: asset.isIsoScope || '', // ✨ ISMS：是否在ISO驗證範圍內（Z欄）
       ismsAssetId: String(mapping.ismsAssetId || asset.ismsAssetId || '')
@@ -1120,6 +1132,8 @@ function getTransferData(forceUserScope) {
     .map(asset => ({
       id: asset.assetId,
       assetName: asset.assetName,
+      assetAlias: String(asset.assetAlias || ''),
+      productSerial: String(asset.productSerial || ''),
       modelBrand: asset.modelBrand || '',
       location: asset.location,
       category: asset.assetCategory,
@@ -1880,8 +1894,11 @@ function getPendingApprovals(forceUserScope) {
       asset.assetId,
       {
         assetName: asset.assetName,
+        assetAlias: String(asset.assetAlias || ''),
+        productSerial: String(asset.productSerial || ''),
         modelBrand: asset.modelBrand || '',
-        userName: asset.userName || '無'
+        userName: asset.userName || '無',
+        sourceSheet: String(asset.sourceSheet || '')
       }
     ]));
     
@@ -1912,7 +1929,7 @@ function getPendingApprovals(forceUserScope) {
       })
       .map(row => {
         const assetId = row[AL_ASSET_ID_COLUMN_INDEX - 1];
-        const assetInfo = assetIdToInfoMap.get(assetId) || { assetName: '（找不到名稱）', modelBrand: '', userName: '無' };
+        const assetInfo = assetIdToInfoMap.get(assetId) || { assetName: '（找不到名稱）', assetAlias: '', productSerial: '', modelBrand: '', userName: '無', sourceSheet: '' };
 
         // ✨ 讀取轉移類型資訊（如果有的話）
         const transferType = row.length > AL_TRANSFER_TYPE_COLUMN_INDEX - 1
@@ -1932,6 +1949,8 @@ function getPendingApprovals(forceUserScope) {
           applyTime: new Date(row[AL_APP_TIME_COLUMN_INDEX - 1]).toLocaleString('zh-TW'),
           assetId: assetId,
           assetName: assetInfo.assetName,
+          assetAlias: String(assetInfo.assetAlias || ''),
+          productSerial: String(assetInfo.productSerial || ''),
           modelBrand: assetInfo.modelBrand,
           userName: assetInfo.userName,
           oldKeeper: row[AL_OLD_LEADER_COLUMN_INDEX - 1],
@@ -1940,7 +1959,8 @@ function getPendingApprovals(forceUserScope) {
           newKeeper: row[AL_NEW_LEADER_COLUMN_INDEX - 1], // ✨ 新增：新保管人姓名
           oldUser: oldUser, // ✨ 新增：原使用人
           newUser: newUser, // ✨ 新增：新使用人
-          transferType: transferType // ✨ 新增：轉移類型
+          transferType: transferType, // ✨ 新增：轉移類型
+          sourceSheet: String(assetInfo.sourceSheet || '')
         };
       });
     
@@ -2492,10 +2512,13 @@ function getLendingData() {
       .map(asset => ({
         id: asset.assetId,
         assetName: asset.assetName,
+        assetAlias: String(asset.assetAlias || ''),
+        productSerial: String(asset.productSerial || ''),
         modelBrand: asset.modelBrand || '',
         leaderName: asset.leaderName,
         location: asset.location,
-        userName: asset.userName || '無' // 使用者名稱，物品總表顯示「無」
+        userName: asset.userName || '無', // 使用者名稱，物品總表顯示「無」
+        sourceSheet: String(asset.sourceSheet || '')
       }));
 
     // 2. 從所有資產中，提取不重複的借用人 (姓名) 和地點
@@ -2667,12 +2690,15 @@ function getLentOutAssets(forceUserScope) {
         const allAssets = getAllAssets();
         const assetIdToInfoMap = new Map(allAssets.map(asset => [String(asset.assetId || '').trim(), {
             assetName: asset.assetName,
+            assetAlias: String(asset.assetAlias || ''),
+            productSerial: String(asset.productSerial || ''),
             modelBrand: asset.modelBrand || '',
             leaderName: asset.leaderName || '',
             leaderEmail: asset.leaderEmail || '',
             userName: asset.userName || '無',
             userEmail: asset.userEmail || '',
-            location: asset.location || ''
+            location: asset.location || '',
+            sourceSheet: String(asset.sourceSheet || '')
         }]));  // ✨ 新增：資產資訊映射
 
         const lentAssets = lendingData
@@ -2714,6 +2740,8 @@ function getLentOutAssets(forceUserScope) {
                     applyTime: formatDateValue(row[LL_LEND_TIME_COLUMN_INDEX - 1], 'yyyy/MM/dd'),
                     assetId: assetId,
                     assetName: assetInfo.assetName || '',
+                    assetAlias: String(assetInfo.assetAlias || ''),
+                    productSerial: String(assetInfo.productSerial || ''),
                     modelBrand: assetInfo.modelBrand || '',
                     keeperName: assetInfo.leaderName || '',
                     userName: assetInfo.userName || '',
@@ -2726,7 +2754,8 @@ function getLentOutAssets(forceUserScope) {
                     borrowerType: borrowerType,
                     contactPhone: contactPhone,
                     docUrl: docUrl,
-                    printTime: printTime
+                    printTime: printTime,
+                    sourceSheet: String(assetInfo.sourceSheet || '')
                 };
             });
 
@@ -2882,8 +2911,11 @@ function getExternalLendingPrintGroups(forceUserScope) {
         lendId: row[LL_LEND_ID_COLUMN_INDEX - 1],
         assetId: assetId,
         assetName: assetInfo.assetName || '',
+        assetAlias: String(assetInfo.assetAlias || ''),
+        productSerial: String(assetInfo.productSerial || ''),
         serialNumber: serialAndId,
-        lendingLocation: lendingLocation
+        lendingLocation: lendingLocation,
+        sourceSheet: String(assetInfo.sourceSheet || '')
       });
     });
 
@@ -3659,17 +3691,23 @@ function getScrapAssetsByDateRange(startDate, endDate, assetCategory) {
       }
     };
 
+    const assetMap = new Map(getAllAssets().map(asset => [String(asset.assetId || '').trim(), asset]));
     const results = filteredRows.map(row => {
       const rawDate = row[SL_UPDATE_TIME_COLUMN_INDEX - 1] || row[SL_APPLY_TIME_COLUMN_INDEX - 1];
+      const assetId = String(row[SL_ASSET_ID_COLUMN_INDEX - 1] || '').trim();
+      const asset = assetMap.get(assetId) || {};
       return {
-        assetId: String(row[SL_ASSET_ID_COLUMN_INDEX - 1] || ''),
+        assetId: assetId,
         assetName: String(row[SL_ASSET_NAME_COLUMN_INDEX - 1] || ''),
+        assetAlias: String(asset.assetAlias || ''),
+        productSerial: String(asset.productSerial || ''),
         modelBrand: String(row[SL_MODEL_BRAND_COLUMN_INDEX - 1] || ''),
         leaderName: String(row[SL_KEEPER_NAME_COLUMN_INDEX - 1] || ''),
         userName: String(row[SL_USER_NAME_COLUMN_INDEX - 1] || ''),
         location: String(row[SL_LOCATION_COLUMN_INDEX - 1] || ''),
         scrapDate: formatDateValue(rawDate, 'yyyy/MM/dd'),
-        scrapReason: String(row[SL_SCRAP_REASON_COLUMN_INDEX - 1] || '')
+        scrapReason: String(row[SL_SCRAP_REASON_COLUMN_INDEX - 1] || ''),
+        sourceSheet: String(asset.sourceSheet || '')
       };
     });
 
@@ -3907,11 +3945,14 @@ function getAllScrappableItems(assetCategory, forceUserScope) {
     return {
       assetId: String(asset.assetId || ''),
       assetName: String(asset.assetName || ''),
+      assetAlias: String(asset.assetAlias || ''),
+      productSerial: String(asset.productSerial || ''),
       modelBrand: String(asset.modelBrand || ''),
       originalKeeper: String(asset.leaderName || ''),
       originalUser: String(asset.userName || ''), // 物品總表可能無此欄位，轉為空字串
       scrapDate: scrapDateStr,                    // 傳送格式化後的字串，而非 Date 物件
-      scrapReason: String(asset.remarks || '')    // 確保為字串
+      scrapReason: String(asset.remarks || ''),    // 確保為字串
+      sourceSheet: String(asset.sourceSheet || '')
     };
   });
 }
@@ -4503,6 +4544,8 @@ function getAllTransferableItems(assetCategory, forceUserScope) {
         items.push({
           assetId: asset.assetId,
           assetName: asset.assetName,
+          assetAlias: String(asset.assetAlias || ''),
+          productSerial: String(asset.productSerial || ''),
           modelBrand: asset.modelBrand || '',
           oldKeeper: transfer.oldKeeper,
           oldUser: transfer.oldUser || '',
@@ -4511,7 +4554,8 @@ function getAllTransferableItems(assetCategory, forceUserScope) {
           newUser: transfer.newUser || '',
           newLocation: transfer.newLocation,
           transferType: transfer.transferType,
-          transferDate: new Date(transfer.reviewTime).toLocaleDateString('zh-TW')
+          transferDate: new Date(transfer.reviewTime).toLocaleDateString('zh-TW'),
+          sourceSheet: String(asset.sourceSheet || '')
         });
       }
     });
@@ -5088,6 +5132,8 @@ function getTransferringAssets(forceUserScope) {
           results.push({
             assetId: assetId || '',
             assetName: asset ? asset.assetName : '',
+            assetAlias: asset ? String(asset.assetAlias || '') : '',
+            productSerial: asset ? String(asset.productSerial || '') : '',
             modelBrand: asset ? asset.modelBrand : '',
             category: asset ? asset.assetCategory : '',
             oldKeeper: row[AL_OLD_LEADER_COLUMN_INDEX - 1] || '',
@@ -5099,7 +5145,8 @@ function getTransferringAssets(forceUserScope) {
             userName: asset ? asset.userName || '無' : '無',
             applicationTime: applicationTime,
             status: status,
-            transferType: row[AL_TRANSFER_TYPE_COLUMN_INDEX - 1] || '地點'
+            transferType: row[AL_TRANSFER_TYPE_COLUMN_INDEX - 1] || '地點',
+            sourceSheet: asset ? String(asset.sourceSheet || '') : ''
           });
         }
       }
@@ -5201,6 +5248,8 @@ function getTransferOverviewForUserState(forceUserScope) {
         transferringAssets.push({
           assetId: assetId,
           assetName: assetInfo.assetName || '',
+          assetAlias: String(assetInfo.assetAlias || ''),
+          productSerial: String(assetInfo.productSerial || ''),
           modelBrand: assetInfo.modelBrand || '',
           category: assetInfo.assetCategory || '',
           oldKeeper: row[AL_OLD_LEADER_COLUMN_INDEX - 1] || '',
@@ -5213,7 +5262,8 @@ function getTransferOverviewForUserState(forceUserScope) {
           applicationTime: applicationTime,
           status: status,
           transferType: transferType,
-          applicantEmail: applicantEmail || ''
+          applicantEmail: applicantEmail || '',
+          sourceSheet: String(assetInfo.sourceSheet || '')
         });
       }
 
@@ -5229,6 +5279,8 @@ function getTransferOverviewForUserState(forceUserScope) {
           applyTime: applyTime,
           assetId: assetId,
           assetName: assetInfo.assetName,
+          assetAlias: String(assetInfo.assetAlias || ''),
+          productSerial: String(assetInfo.productSerial || ''),
           modelBrand: assetInfo.modelBrand,
           userName: assetInfo.userName,
           oldKeeper: row[AL_OLD_LEADER_COLUMN_INDEX - 1],
@@ -5237,7 +5289,8 @@ function getTransferOverviewForUserState(forceUserScope) {
           newKeeper: row[AL_NEW_LEADER_COLUMN_INDEX - 1] || '',
           oldUser: row[AL_OLD_USER_COLUMN_INDEX - 1] || '',
           newUser: row[AL_NEW_USER_COLUMN_INDEX - 1] || '',
-          transferType: transferType
+          transferType: transferType,
+          sourceSheet: String(assetInfo.sourceSheet || '')
         });
       }
 
@@ -5278,6 +5331,7 @@ function getTransferOverviewForUserState(forceUserScope) {
       transferDetailMap[assetId] = {
         assetId: assetId,
         assetName: String(asset.assetName || ''),
+        ...buildAssetAliasFields_(asset),
         status: String(asset.assetStatus || row[AL_STATUS_COLUMN_INDEX - 1] || '').trim(),
         type: 'transfer',
         detail: {
@@ -5406,6 +5460,7 @@ function getTransferStatusDetailsByAssets(assetIds, forceUserScope) {
       details[assetId] = {
         assetId: assetId,
         assetName: asset ? String(asset.assetName || '') : '',
+        ...buildAssetAliasFields_(asset),
         status: String(asset?.assetStatus || row[AL_STATUS_COLUMN_INDEX - 1] || '').trim(),
         type: 'transfer',
         detail: {
@@ -5467,6 +5522,7 @@ function getAssetStatusDetail(assetId, forceUserScope) {
     const baseResult = {
       assetId: normalizedAssetId,
       assetName: String(asset.assetName || ''),
+      ...buildAssetAliasFields_(asset),
       status: status
     };
     const formatDateValue = (value, pattern) => {
@@ -6550,6 +6606,8 @@ function getPendingInventoryAssignments(forceUserScope) {
         inventoryEmail: session.inventoryEmail,
         assetId: assetId,
         assetName: assetContext.assetName,
+        assetAlias: assetContext.assetAlias,
+        productSerial: assetContext.productSerial,
         keeperName: assetContext.keeperName,
         userName: assetContext.userName,
         location: assetContext.location,
@@ -6560,7 +6618,8 @@ function getPendingInventoryAssignments(forceUserScope) {
         assignedUserType: assignedUserType,
         isItAsset: assetContext.isItAsset,
         ismsAssetId: assetContext.ismsAssetId,
-        isIsoScope: assetContext.isIsoScope
+        isIsoScope: assetContext.isIsoScope,
+        sourceSheet: assetContext.sourceSheet
       });
     });
 
@@ -7022,6 +7081,7 @@ function getInventoryDetails(inventoryId) {
           assetId: assetId,
           assetName: assetContext.assetName,
           assetAlias: assetContext.assetAlias,
+          productSerial: assetContext.productSerial,
           keeperName: assetContext.keeperName,
           userName: assetContext.userName,
           modelBrand: assetContext.modelBrand,
