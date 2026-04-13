@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>資訊資產清單</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <script>
+    (function() {
+      const originalWarn = console.warn;
+      console.warn = function(...args) {
+        if (typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) return;
+        originalWarn.apply(console, args);
+      };
+    })();
+  </script>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    :root {
+      --ink-900: #0f172a;
+      --ink-700: #334155;
+      --ink-500: #64748b;
+      --ink-300: #cbd5e1;
+      --surface: #ffffff;
+      --bg-soft: #f8fafc;
+      --accent-500: #2563eb;
+      --accent-600: #1d4ed8;
+      --accent-50: #eff6ff;
+      --border: #e2e8f0;
+    }
+
+    body {
+      font-family: "Noto Sans TC", sans-serif;
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      min-height: 100vh;
+      color: var(--ink-900);
+    }
+
+    .card {
+      background: var(--surface);
+      border-radius: 14px;
+      box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+      border: 1px solid var(--border);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: white;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-weight: 600;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(37, 99, 235, 0.3); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-secondary {
+      background: white;
+      color: var(--ink-700);
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-weight: 500;
+      border: 1px solid var(--border);
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-secondary:hover { background: var(--bg-soft); border-color: var(--ink-300); }
+
+    .stat-card {
+      background: white;
+      border-radius: 14px;
+      padding: 20px 22px;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+      border: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0;
+      width: 4px; height: 100%;
+      background: var(--accent-color, var(--accent-500));
+    }
+    .stat-card .label { font-size: 13px; color: var(--ink-500); font-weight: 500; margin-bottom: 6px; }
+    .stat-card .value { font-size: 28px; font-weight: 700; color: var(--ink-900); line-height: 1.1; }
+    .stat-card .icon { position: absolute; right: 18px; top: 18px; opacity: 0.15; font-size: 36px; color: var(--accent-color, var(--accent-500)); }
+
+    .field {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 12px;
+      font-size: 14px;
+      color: var(--ink-900);
+      outline: none;
+      transition: all 0.15s;
+      width: 100%;
+    }
+    .field:focus { border-color: var(--accent-500); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 36px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+    .pill-high  { background: #fee2e2; color: #b91c1c; }
+    .pill-mid   { background: #fef3c7; color: #b45309; }
+    .pill-low   { background: #dcfce7; color: #15803d; }
+    .pill-na    { background: #f1f5f9; color: #64748b; }
+
+    .value-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .value-high { background: linear-gradient(135deg, #fecaca, #fca5a5); color: #7f1d1d; }
+    .value-mid  { background: linear-gradient(135deg, #fde68a, #fcd34d); color: #78350f; }
+    .value-low  { background: linear-gradient(135deg, #bbf7d0, #86efac); color: #14532d; }
+    .value-na   { background: #f1f5f9; color: #64748b; }
+
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 12px;
+      background: white;
+    }
+
+    table.isms {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 14px;
+      min-width: 1180px;
+    }
+    table.isms thead th {
+      background: #f8fafc;
+      color: var(--ink-700);
+      font-weight: 600;
+      text-align: left;
+      padding: 12px 14px;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    table.isms thead th .sub {
+      display: block;
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--ink-500);
+      margin-top: 2px;
+    }
+    table.isms tbody td {
+      padding: 12px 14px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: middle;
+      color: var(--ink-900);
+    }
+    table.isms tbody tr:nth-child(even) td { background: #fafbfc; }
+    table.isms tbody tr:hover td { background: var(--accent-50); }
+    table.isms .mono { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: 13px; color: var(--accent-600); font-weight: 600; }
+    table.isms .ellipsis {
+      max-width: 320px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: block;
+    }
+    table.isms .cell-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    .skeleton-row td {
+      background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 50%, #f1f5f9 100%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      height: 38px;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+    .empty-state { padding: 60px 20px; text-align: center; color: var(--ink-500); }
+    .empty-state i { font-size: 42px; color: var(--ink-300); margin-bottom: 12px; }
+
+    .tag-category {
+      display: inline-block;
+      padding: 3px 10px;
+      background: #e0f2fe;
+      color: #075985;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 12px 20px;
+      border-radius: 10px;
+      background: var(--ink-900);
+      color: white;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
+      font-size: 14px;
+      z-index: 50;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.25s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+  <div class="max-w-[1400px] mx-auto px-4 md:px-8 py-6">
+
+    <!-- Header -->
+    <header class="flex flex-wrap items-end justify-between gap-4 mb-6">
+      <div>
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center text-white shadow-md">
+            <i class="fa-solid fa-shield-halved text-lg"></i>
+          </div>
+          <div>
+            <h1 class="text-2xl font-bold text-slate-900">資訊資產清單</h1>
+            <p class="text-sm text-slate-500 mt-0.5">ISMS Information Asset Inventory Dashboard</p>
+          </div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span id="lastUpdate" class="text-xs text-slate-500 mr-2"></span>
+        <button id="btnRefresh" class="btn-secondary" title="重新整理">
+          <i class="fa-solid fa-rotate"></i><span class="hidden sm:inline">重新整理</span>
+        </button>
+        <button id="btnExport" class="btn-primary" title="匯出目前顯示資料為 CSV">
+          <i class="fa-solid fa-file-csv"></i><span class="hidden sm:inline">匯出 CSV</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Stats -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="stat-card" style="--accent-color:#2563eb">
+        <div class="label">資產總數</div>
+        <div class="value" id="statTotal">—</div>
+        <i class="fa-solid fa-boxes-stacked icon"></i>
+      </div>
+      <div class="stat-card" style="--accent-color:#0891b2">
+        <div class="label">資訊資產類別</div>
+        <div class="value" id="statCategory">—</div>
+        <i class="fa-solid fa-layer-group icon"></i>
+      </div>
+      <div class="stat-card" style="--accent-color:#7c3aed">
+        <div class="label">權責單位</div>
+        <div class="value" id="statUnit">—</div>
+        <i class="fa-solid fa-sitemap icon"></i>
+      </div>
+      <div class="stat-card" style="--accent-color:#dc2626">
+        <div class="label">高資產價值筆數</div>
+        <div class="value" id="statHigh">—</div>
+        <i class="fa-solid fa-gem icon"></i>
+      </div>
+    </section>
+
+    <!-- Filters -->
+    <section class="card p-4 md:p-5 mb-5">
+      <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <div class="md:col-span-2 relative">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+          <input id="searchInput" class="field pl-9" placeholder="搜尋編號 / 名稱 / 說明 / 地點…" />
+        </div>
+        <select id="filterCategory" class="field"><option value="">全部類別</option></select>
+        <select id="filterUnit" class="field"><option value="">全部權責單位</option></select>
+        <select id="filterValue" class="field">
+          <option value="">全部資產價值</option>
+          <option value="high">高</option>
+          <option value="mid">中</option>
+          <option value="low">低</option>
+        </select>
+      </div>
+      <div class="flex flex-wrap items-center justify-between gap-3 mt-3 pt-3 border-t border-slate-100">
+        <div class="text-sm text-slate-500">
+          目前顯示 <span id="countShown" class="font-semibold text-slate-900">0</span>
+          / <span id="countTotal" class="font-semibold text-slate-700">0</span> 筆
+        </div>
+        <button id="btnClear" class="btn-secondary text-sm">
+          <i class="fa-solid fa-eraser"></i>清除篩選
+        </button>
+      </div>
+    </section>
+
+    <!-- Table -->
+    <section class="card overflow-hidden">
+      <div class="table-wrap">
+        <table class="isms" id="assetTable">
+          <thead>
+            <tr>
+              <th>資訊資產編號</th>
+              <th>類別</th>
+              <th>名稱</th>
+              <th>說明</th>
+              <th class="cell-num">數量</th>
+              <th>地點</th>
+              <th>權責單位</th>
+              <th>機密性<span class="sub">Confidentiality</span></th>
+              <th>完整性<span class="sub">Integrity</span></th>
+              <th>可用性<span class="sub">Availability</span></th>
+              <th>資產價值<span class="sub">Asset Value</span></th>
+            </tr>
+          </thead>
+          <tbody id="assetTbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const state = {
+      all: [],
+      filtered: []
+    };
+
+    const $ = (id) => document.getElementById(id);
+
+    function showToast(msg) {
+      const t = $('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => t.classList.remove('show'), 2400);
+    }
+
+    function classifyLevel(val) {
+      if (val === null || val === undefined) return 'na';
+      const s = String(val).trim();
+      if (!s) return 'na';
+      const lower = s.toLowerCase();
+      if (/^(h|high|高)/.test(lower) || s === '3') return 'high';
+      if (/^(m|mid|medium|中)/.test(lower) || s === '2') return 'mid';
+      if (/^(l|low|低)/.test(lower) || s === '1') return 'low';
+      return 'na';
+    }
+
+    function pill(val) {
+      const level = classifyLevel(val);
+      const span = document.createElement('span');
+      span.className = 'pill pill-' + level;
+      span.textContent = (val === null || val === undefined || String(val).trim() === '') ? '—' : String(val);
+      return span;
+    }
+
+    function valueBadge(val) {
+      const level = classifyLevel(val);
+      const span = document.createElement('span');
+      span.className = 'value-badge value-' + level;
+      const icon = document.createElement('i');
+      icon.className = level === 'high' ? 'fa-solid fa-arrow-trend-up'
+                     : level === 'mid'  ? 'fa-solid fa-equals'
+                     : level === 'low'  ? 'fa-solid fa-arrow-trend-down'
+                     : 'fa-solid fa-minus';
+      span.appendChild(icon);
+      const text = document.createElement('span');
+      text.textContent = (val === null || val === undefined || String(val).trim() === '') ? '—' : String(val);
+      span.appendChild(text);
+      return span;
+    }
+
+    function makeCell(text, opts = {}) {
+      const td = document.createElement('td');
+      if (opts.className) td.className = opts.className;
+      if (opts.ellipsis) {
+        const span = document.createElement('span');
+        span.className = 'ellipsis';
+        span.textContent = text || '';
+        if (text) span.title = text;
+        td.appendChild(span);
+      } else {
+        td.textContent = text || '';
+      }
+      return td;
+    }
+
+    function renderTable() {
+      const tbody = $('assetTbody');
+      tbody.textContent = '';
+
+      if (!state.filtered.length) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 11;
+        td.innerHTML = '';
+        const wrap = document.createElement('div');
+        wrap.className = 'empty-state';
+        const icon = document.createElement('i');
+        icon.className = 'fa-solid fa-folder-open';
+        const p = document.createElement('p');
+        p.textContent = state.all.length ? '沒有符合篩選條件的資訊資產' : '尚無資訊資產資料';
+        wrap.appendChild(icon);
+        wrap.appendChild(p);
+        td.appendChild(wrap);
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+      }
+
+      const frag = document.createDocumentFragment();
+      for (const a of state.filtered) {
+        const tr = document.createElement('tr');
+
+        const tdId = document.createElement('td');
+        tdId.className = 'mono';
+        tdId.textContent = a.ismsAssetId || '';
+        tr.appendChild(tdId);
+
+        const tdCat = document.createElement('td');
+        if (a.category) {
+          const tag = document.createElement('span');
+          tag.className = 'tag-category';
+          tag.textContent = a.category;
+          tdCat.appendChild(tag);
+        }
+        tr.appendChild(tdCat);
+
+        tr.appendChild(makeCell(a.name, { className: 'font-medium' }));
+        tr.appendChild(makeCell(a.description, { ellipsis: true }));
+        tr.appendChild(makeCell(a.quantity, { className: 'cell-num' }));
+        tr.appendChild(makeCell(a.location));
+        tr.appendChild(makeCell(a.responsibleUnit));
+
+        const tdC = document.createElement('td'); tdC.appendChild(pill(a.confidentiality)); tr.appendChild(tdC);
+        const tdI = document.createElement('td'); tdI.appendChild(pill(a.integrity));       tr.appendChild(tdI);
+        const tdA = document.createElement('td'); tdA.appendChild(pill(a.availability));    tr.appendChild(tdA);
+        const tdV = document.createElement('td'); tdV.appendChild(valueBadge(a.assetValue));tr.appendChild(tdV);
+
+        frag.appendChild(tr);
+      }
+      tbody.appendChild(frag);
+    }
+
+    function renderStats() {
+      $('statTotal').textContent = state.all.length.toLocaleString();
+      const categories = new Set(state.all.map(a => (a.category || '').trim()).filter(Boolean));
+      $('statCategory').textContent = categories.size;
+      const units = new Set(state.all.map(a => (a.responsibleUnit || '').trim()).filter(Boolean));
+      $('statUnit').textContent = units.size;
+      const high = state.all.filter(a => classifyLevel(a.assetValue) === 'high').length;
+      $('statHigh').textContent = high.toLocaleString();
+    }
+
+    function populateFilters() {
+      const catSel = $('filterCategory');
+      const unitSel = $('filterUnit');
+      while (catSel.options.length > 1) catSel.remove(1);
+      while (unitSel.options.length > 1) unitSel.remove(1);
+
+      const cats = [...new Set(state.all.map(a => (a.category || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-TW'));
+      for (const c of cats) {
+        const o = document.createElement('option');
+        o.value = c; o.textContent = c;
+        catSel.appendChild(o);
+      }
+      const units = [...new Set(state.all.map(a => (a.responsibleUnit || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-TW'));
+      for (const u of units) {
+        const o = document.createElement('option');
+        o.value = u; o.textContent = u;
+        unitSel.appendChild(o);
+      }
+    }
+
+    function applyFilters() {
+      const kw = $('searchInput').value.trim().toLowerCase();
+      const cat = $('filterCategory').value;
+      const unit = $('filterUnit').value;
+      const valLevel = $('filterValue').value;
+
+      state.filtered = state.all.filter(a => {
+        if (cat && (a.category || '').trim() !== cat) return false;
+        if (unit && (a.responsibleUnit || '').trim() !== unit) return false;
+        if (valLevel && classifyLevel(a.assetValue) !== valLevel) return false;
+        if (kw) {
+          const blob = [a.ismsAssetId, a.name, a.description, a.location, a.category, a.responsibleUnit]
+            .map(v => (v || '').toString().toLowerCase()).join(' ');
+          if (!blob.includes(kw)) return false;
+        }
+        return true;
+      });
+
+      $('countShown').textContent = state.filtered.length.toLocaleString();
+      $('countTotal').textContent = state.all.length.toLocaleString();
+      renderTable();
+    }
+
+    function clearFilters() {
+      $('searchInput').value = '';
+      $('filterCategory').value = '';
+      $('filterUnit').value = '';
+      $('filterValue').value = '';
+      applyFilters();
+    }
+
+    function exportCsv() {
+      if (!state.filtered.length) {
+        showToast('沒有資料可匯出');
+        return;
+      }
+      const headers = ['資訊資產編號', '類別', '名稱', '說明', '數量', '地點', '權責單位', '機密性', '完整性', '可用性', '資產價值'];
+      const rows = state.filtered.map(a => [
+        a.ismsAssetId, a.category, a.name, a.description, a.quantity,
+        a.location, a.responsibleUnit, a.confidentiality, a.integrity, a.availability, a.assetValue
+      ]);
+      const csv = [headers, ...rows]
+        .map(r => r.map(c => `"${String(c == null ? '' : c).replace(/"/g, '""')}"`).join(','))
+        .join('\n');
+      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const ts = new Date().toISOString().slice(0, 10);
+      a.href = url;
+      a.download = `資訊資產清單_${ts}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast(`已匯出 ${state.filtered.length} 筆`);
+    }
+
+    function showSkeleton() {
+      const tbody = $('assetTbody');
+      tbody.textContent = '';
+      for (let i = 0; i < 8; i++) {
+        const tr = document.createElement('tr');
+        tr.className = 'skeleton-row';
+        for (let j = 0; j < 11; j++) tr.appendChild(document.createElement('td'));
+        tbody.appendChild(tr);
+      }
+    }
+
+    function loadData() {
+      showSkeleton();
+      $('btnRefresh').disabled = true;
+      google.script.run
+        .withSuccessHandler(res => {
+          $('btnRefresh').disabled = false;
+          if (!res || !res.success) {
+            showToast('載入失敗:' + (res && res.error ? res.error : '未知錯誤'));
+            state.all = []; state.filtered = [];
+            renderStats(); renderTable();
+            return;
+          }
+          state.all = res.assets || [];
+          populateFilters();
+          renderStats();
+          applyFilters();
+          const now = new Date();
+          $('lastUpdate').textContent = '最後更新:' + now.toLocaleString('zh-TW', { hour12: false });
+        })
+        .withFailureHandler(err => {
+          $('btnRefresh').disabled = false;
+          showToast('連線失敗:' + (err && err.message ? err.message : err));
+        })
+        .getIsmsAssets({});
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      $('searchInput').addEventListener('input', applyFilters);
+      $('filterCategory').addEventListener('change', applyFilters);
+      $('filterUnit').addEventListener('change', applyFilters);
+      $('filterValue').addEventListener('change', applyFilters);
+      $('btnClear').addEventListener('click', clearFilters);
+      $('btnRefresh').addEventListener('click', loadData);
+      $('btnExport').addEventListener('click', exportCsv);
+      loadData();
+    });
+  </script>
+</body>
+</html>
