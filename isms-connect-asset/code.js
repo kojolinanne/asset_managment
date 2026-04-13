@@ -83,7 +83,7 @@ function getEmailToGroupMap_() {
 }
 
 /**
- * 取得資產的組別（優先使用 DEFAULT_GROUP，其次查詢 email 對照表）
+ * 取得資產的組別（優先使用 DEFAULT_GROUP，其次查詢使用人 email，最後查詢保管人 email）
  */
 function getAssetGroup_(asset, emailToGroupMap) {
   // 第一優先：使用資產的 DEFAULT_GROUP
@@ -95,6 +95,15 @@ function getAssetGroup_(asset, emailToGroupMap) {
   if (asset.userEmail) {
     const normalizedEmail = String(asset.userEmail).toLowerCase().trim();
     const groupName = emailToGroupMap[normalizedEmail];
+    if (groupName) {
+      return groupName;
+    }
+  }
+
+  // 第三優先：根據保管人 email 查詢組別
+  if (asset.leaderEmail) {
+    const normalizedLeaderEmail = String(asset.leaderEmail).toLowerCase().trim();
+    const groupName = emailToGroupMap[normalizedLeaderEmail];
     if (groupName) {
       return groupName;
     }
