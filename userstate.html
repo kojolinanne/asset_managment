@@ -362,6 +362,32 @@
             min-height: 0;
         }
 
+        .inventory-section-switch {
+            display: none;
+        }
+
+        .inventory-section-switch__button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #dbe3ee;
+            background: #ffffff;
+            color: #475569;
+            border-radius: 999px;
+            padding: 9px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1;
+            transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .inventory-section-switch__button.is-active {
+            background: #0f766e;
+            color: #ffffff;
+            border-color: #0f766e;
+            box-shadow: 0 10px 24px rgba(15, 118, 110, 0.2);
+        }
+
         .inventory-card {
             border: 1px solid #e2e8f0;
             border-radius: 14px;
@@ -634,6 +660,19 @@
             padding-top: 8px;
         }
 
+        .inventory-filter-dropdown-panel {
+            position: absolute;
+            z-index: 50;
+            margin-top: 8px;
+            width: 100%;
+        }
+
+        .inventory-selected-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
         .inventory-badge {
             padding: 2px 8px;
             border-radius: 999px;
@@ -656,6 +695,161 @@
         .inventory-badge--unknown {
             background: #e2e8f0;
             color: #475569;
+        }
+
+        @media (max-width: 768px) {
+            .inventory-modal-overlay {
+                align-items: flex-end;
+                padding: 0;
+            }
+
+            .inventory-modal {
+                width: 100vw;
+                max-width: 100vw;
+                height: min(100dvh, 100vh);
+                max-height: min(100dvh, 100vh);
+                border-radius: 24px 24px 0 0;
+                overflow: hidden;
+            }
+
+            .inventory-modal-header {
+                padding: 14px 16px 12px;
+            }
+
+            .inventory-modal-body {
+                padding: 16px;
+                gap: 16px;
+                display: block;
+                overflow-y: auto;
+                overscroll-behavior: contain;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .inventory-column {
+                gap: 12px;
+            }
+
+            .inventory-column.is-mobile-hidden {
+                display: none;
+            }
+
+            .inventory-section-switch {
+                display: flex;
+                gap: 8px;
+                padding: 12px 16px 0;
+                background: #ffffff;
+                border-bottom: 1px solid #e2e8f0;
+            }
+
+            .inventory-section-switch__button {
+                flex: 1;
+                justify-content: center;
+                min-height: 42px;
+            }
+
+            .inventory-card {
+                border-radius: 16px;
+                box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+            }
+
+            .inventory-card-header {
+                padding: 12px 14px;
+                font-size: 14px;
+            }
+
+            .inventory-card-body {
+                padding: 14px;
+            }
+
+            .inventory-option-label {
+                align-items: flex-start;
+                font-size: 13px;
+                line-height: 1.45;
+            }
+
+            .inventory-option-label input {
+                margin-top: 2px;
+                flex-shrink: 0;
+            }
+
+            .inventory-filter-dropdown-panel {
+                position: static;
+                margin-top: 10px;
+                z-index: auto;
+            }
+
+            .inventory-selected-chips {
+                max-height: 120px;
+                overflow-y: auto;
+                padding-right: 2px;
+            }
+
+            .inventory-action-footer {
+                position: sticky;
+                bottom: 0;
+                margin: 0 -14px -14px;
+                padding: 12px 14px 14px;
+                background: linear-gradient(180deg, rgba(255, 255, 255, 0.15) 0%, #ffffff 20%);
+                border-top: 1px solid #e2e8f0;
+            }
+
+            .inventory-primary-button {
+                width: 100%;
+                min-height: 44px;
+                border-radius: 12px;
+            }
+
+            .inventory-history-list {
+                max-height: none;
+                overflow: visible;
+                padding-right: 0;
+            }
+
+            .inventory-history-item {
+                padding: 14px;
+            }
+
+            .inventory-history-head,
+            .inventory-history-right {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .inventory-history-title {
+                flex-wrap: wrap;
+            }
+
+            .inventory-history-count {
+                text-align: left;
+            }
+
+            .inventory-history-actions {
+                justify-content: stretch;
+            }
+
+            .inventory-history-export,
+            .inventory-history-delete {
+                min-height: 40px;
+            }
+
+            .inventory-history-export {
+                flex: 1;
+            }
+
+            .inventory-history-delete {
+                width: 100%;
+            }
+
+            .inventory-modal-footer {
+                padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+                background: rgba(248, 250, 252, 0.96);
+            }
+
+            .inventory-secondary-button {
+                width: 100%;
+                min-height: 42px;
+                border-radius: 12px;
+            }
         }
 
         .mode-toggle-card {
@@ -3386,6 +3580,7 @@
             const [historyItems, setHistoryItems] = useState([]);
             const [isHistoryLoading, setIsHistoryLoading] = useState(true);
             const [historyError, setHistoryError] = useState('');
+            const [mobileSection, setMobileSection] = useState('start');
             const [filterType, setFilterType] = useState('all');
             const [systemScope, setSystemScope] = useState('all');
             const [filterValue, setFilterValue] = useState('');
@@ -3415,6 +3610,14 @@
                     .withSuccessHandler(resolve)
                     .withFailureHandler(reject)[fnName](...args);
             }), []);
+
+            const closeAllFilterDropdowns = useCallback(() => {
+                setLocationDropdownOpen(false);
+                setKeeperDropdownOpen(false);
+                setUserDropdownOpen(false);
+                setGroupDropdownOpen(false);
+                setDropdownSearchKeyword('');
+            }, []);
 
             const loadModalData = useCallback((options = {}) => {
                 const { keepDeleteMessage = false } = options;
@@ -3482,14 +3685,22 @@
             }, [loadModalData]);
 
             useEffect(() => {
+                const originalBodyOverflow = document.body.style.overflow;
+                document.body.style.overflow = 'hidden';
+                return () => {
+                    document.body.style.overflow = originalBodyOverflow;
+                };
+            }, []);
+
+            useEffect(() => {
                 const multiSelectTypes = ['location', 'keeper', 'user', 'group'];
                 setFilterValue(multiSelectTypes.includes(filterType) ? [] : '');
-                setLocationDropdownOpen(false);
-                setKeeperDropdownOpen(false);
-                setUserDropdownOpen(false);
-                setGroupDropdownOpen(false);
-                setDropdownSearchKeyword('');
-            }, [filterType]);
+                closeAllFilterDropdowns();
+            }, [closeAllFilterDropdowns, filterType]);
+
+            useEffect(() => {
+                closeAllFilterDropdowns();
+            }, [closeAllFilterDropdowns, mobileSection]);
 
             useEffect(() => {
                 const handleClickOutside = (event) => {
@@ -3506,8 +3717,8 @@
                         setGroupDropdownOpen(false);
                     }
                 };
-                document.addEventListener('mousedown', handleClickOutside);
-                return () => document.removeEventListener('mousedown', handleClickOutside);
+                document.addEventListener('pointerdown', handleClickOutside);
+                return () => document.removeEventListener('pointerdown', handleClickOutside);
             }, []);
 
             const hideAssignmentModal = useCallback(() => {
@@ -3518,6 +3729,7 @@
 
             const handleOverlayClick = (event) => {
                 if (event.target === event.currentTarget) {
+                    closeAllFilterDropdowns();
                     hideAssignmentModal();
                     onClose();
                 }
@@ -3530,6 +3742,8 @@
                         setIsStarting(false);
                         if (result && result.success) {
                             loadModalData();
+                            closeAllFilterDropdowns();
+                            setMobileSection('history');
                             setStartMessage(result.message || '盤點會話已成功建立。');
                         } else {
                             setStartError(result?.error || '開始盤點失敗');
@@ -3540,7 +3754,7 @@
                         setStartError(error.message || '開始盤點失敗');
                     })
                     .startInventorySession(options);
-            }, [loadModalData]);
+            }, [closeAllFilterDropdowns, loadModalData]);
 
             const handleAssignmentModeConfirm = useCallback(() => {
                 const selectedMode = document.querySelector('input[name="assignmentMode"]:checked');
@@ -3647,6 +3861,14 @@
                 setFilterValue([]);
             };
 
+            const toggleDropdownPanel = useCallback((dropdownType) => {
+                setDropdownSearchKeyword('');
+                setLocationDropdownOpen(prev => (dropdownType === 'location' ? !prev : false));
+                setKeeperDropdownOpen(prev => (dropdownType === 'keeper' ? !prev : false));
+                setUserDropdownOpen(prev => (dropdownType === 'user' ? !prev : false));
+                setGroupDropdownOpen(prev => (dropdownType === 'group' ? !prev : false));
+            }, []);
+
             const handleStartSession = () => {
                 setStartError('');
                 setStartMessage('');
@@ -3701,6 +3923,8 @@
             };
 
             const startDisabled = isStarting;
+            const startSectionClassName = `inventory-column${mobileSection === 'history' ? ' is-mobile-hidden' : ''}`;
+            const historySectionClassName = `inventory-column${mobileSection === 'start' ? ' is-mobile-hidden' : ''}`;
 
             const handleDeleteSession = (sessionId) => {
                 if (!sessionId) return;
@@ -3964,14 +4188,35 @@
                             <button
                                 type="button"
                                 className="text-slate-400 hover:text-slate-600 transition-colors"
-                                onClick={onClose}
+                                onClick={() => {
+                                    closeAllFilterDropdowns();
+                                    onClose();
+                                }}
                                 aria-label="關閉"
                             >
                                 <i className="fa-solid fa-xmark text-xl"></i>
                             </button>
                         </div>
+                        <div className="inventory-section-switch" aria-label="盤點管理區塊切換">
+                            <button
+                                type="button"
+                                className={`inventory-section-switch__button${mobileSection === 'start' ? ' is-active' : ''}`}
+                                onClick={() => setMobileSection('start')}
+                                aria-pressed={mobileSection === 'start'}
+                            >
+                                開始盤點
+                            </button>
+                            <button
+                                type="button"
+                                className={`inventory-section-switch__button${mobileSection === 'history' ? ' is-active' : ''}`}
+                                onClick={() => setMobileSection('history')}
+                                aria-pressed={mobileSection === 'history'}
+                            >
+                                歷史記錄
+                            </button>
+                        </div>
                         <div className="inventory-modal-body">
-                            <div className="inventory-column">
+                            <div className={startSectionClassName}>
                                 <section className="inventory-card inventory-card--stretch" id="inventory-action-area">
                                     <div className="inventory-card-header inventory-card-header--primary">
                                         <i className="fa-solid fa-circle-plus"></i>
@@ -4042,7 +4287,7 @@
                                                     <div className="relative" ref={locationDropdownRef}>
                                                         <button
                                                             type="button"
-                                                            onClick={() => { setLocationDropdownOpen(prev => { if (!prev) setDropdownSearchKeyword(''); return !prev; }); }}
+                                                            onClick={() => toggleDropdownPanel('location')}
                                                             className={`w-full px-3 py-2 border rounded-lg text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
                                                                 locationDropdownOpen
                                                                     ? 'border-blue-400 ring-2 ring-blue-100'
@@ -4066,7 +4311,7 @@
                                                         </button>
 
                                                         {locationDropdownOpen && (
-                                                            <div className="absolute z-50 mt-2 w-full rounded-lg border border-slate-200 bg-white shadow-xl">
+                                                            <div className="inventory-filter-dropdown-panel rounded-lg border border-slate-200 bg-white shadow-xl">
                                                                 <div className="p-2 border-b border-slate-100 bg-slate-50">
                                                                     <div className="flex justify-between px-1 text-xs">
                                                                         <button
@@ -4130,7 +4375,7 @@
                                                     </div>
 
                                                     {selectedValues.length > 0 && (
-                                                        <div className="flex flex-wrap gap-2">
+                                                        <div className="inventory-selected-chips">
                                                             {selectedValues.map(value => (
                                                                 <span
                                                                     key={value}
@@ -4176,7 +4421,7 @@
                                                     <div className="relative" ref={keeperDropdownRef}>
                                                         <button
                                                             type="button"
-                                                            onClick={() => { setKeeperDropdownOpen(prev => { if (!prev) setDropdownSearchKeyword(''); return !prev; }); }}
+                                                            onClick={() => toggleDropdownPanel('keeper')}
                                                             className={`w-full px-3 py-2 border rounded-lg text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
                                                                 keeperDropdownOpen
                                                                     ? 'border-blue-400 ring-2 ring-blue-100'
@@ -4200,7 +4445,7 @@
                                                         </button>
 
                                                         {keeperDropdownOpen && (
-                                                            <div className="absolute z-50 mt-2 w-full rounded-lg border border-slate-200 bg-white shadow-xl">
+                                                            <div className="inventory-filter-dropdown-panel rounded-lg border border-slate-200 bg-white shadow-xl">
                                                                 <div className="p-2 border-b border-slate-100 bg-slate-50">
                                                                     <div className="flex justify-between px-1 text-xs">
                                                                         <button
@@ -4264,7 +4509,7 @@
                                                     </div>
 
                                                     {selectedValues.length > 0 && (
-                                                        <div className="flex flex-wrap gap-2">
+                                                        <div className="inventory-selected-chips">
                                                             {selectedValues.map(value => (
                                                                 <span
                                                                     key={value}
@@ -4310,7 +4555,7 @@
                                                     <div className="relative" ref={userDropdownRef}>
                                                         <button
                                                             type="button"
-                                                            onClick={() => { setUserDropdownOpen(prev => { if (!prev) setDropdownSearchKeyword(''); return !prev; }); }}
+                                                            onClick={() => toggleDropdownPanel('user')}
                                                             className={`w-full px-3 py-2 border rounded-lg text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
                                                                 userDropdownOpen
                                                                     ? 'border-blue-400 ring-2 ring-blue-100'
@@ -4334,7 +4579,7 @@
                                                         </button>
 
                                                         {userDropdownOpen && (
-                                                            <div className="absolute z-50 mt-2 w-full rounded-lg border border-slate-200 bg-white shadow-xl">
+                                                            <div className="inventory-filter-dropdown-panel rounded-lg border border-slate-200 bg-white shadow-xl">
                                                                 <div className="p-2 border-b border-slate-100 bg-slate-50">
                                                                     <div className="flex justify-between px-1 text-xs">
                                                                         <button
@@ -4398,7 +4643,7 @@
                                                     </div>
 
                                                     {selectedValues.length > 0 && (
-                                                        <div className="flex flex-wrap gap-2">
+                                                        <div className="inventory-selected-chips">
                                                             {selectedValues.map(value => (
                                                                 <span
                                                                     key={value}
@@ -4444,7 +4689,7 @@
                                                     <div className="relative" ref={groupDropdownRef}>
                                                         <button
                                                             type="button"
-                                                            onClick={() => { setGroupDropdownOpen(prev => { if (!prev) setDropdownSearchKeyword(''); return !prev; }); }}
+                                                            onClick={() => toggleDropdownPanel('group')}
                                                             className={`w-full px-3 py-2 border rounded-lg text-left flex items-center justify-between focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${
                                                                 groupDropdownOpen
                                                                     ? 'border-blue-400 ring-2 ring-blue-100'
@@ -4468,7 +4713,7 @@
                                                         </button>
 
                                                         {groupDropdownOpen && (
-                                                            <div className="absolute z-50 mt-2 w-full rounded-lg border border-slate-200 bg-white shadow-xl">
+                                                            <div className="inventory-filter-dropdown-panel rounded-lg border border-slate-200 bg-white shadow-xl">
                                                                 <div className="p-2 border-b border-slate-100 bg-slate-50">
                                                                     <div className="flex justify-between px-1 text-xs">
                                                                         <button
@@ -4532,7 +4777,7 @@
                                                     </div>
 
                                                     {selectedValues.length > 0 && (
-                                                        <div className="flex flex-wrap gap-2">
+                                                        <div className="inventory-selected-chips">
                                                             {selectedValues.map(group => (
                                                                 <span
                                                                     key={group}
@@ -4572,7 +4817,7 @@
                                                 {isStarting ? '啟動中...' : '開始盤點'}
                                             </button>
                                         </div>
-                                        {startMessage && (
+                                        {startMessage && mobileSection === 'start' && (
                                             <div className="text-sm text-emerald-600 mt-3">{startMessage}</div>
                                         )}
                                         {optionsError && (
@@ -4586,13 +4831,16 @@
                                 </section>
                             </div>
 
-                            <div className="inventory-column">
+                            <div className={historySectionClassName}>
                                 <section className="inventory-card" id="history-list-container">
                                     <div className="inventory-card-header inventory-card-header--neutral">
                                         <i className="fa-solid fa-clock-rotate-left"></i>
                                         盤點歷史記錄
                                     </div>
                                     <div className="inventory-card-body inventory-card-body--neutral">
+                                        {startMessage && (
+                                            <div className="inventory-empty-state text-emerald-600">{startMessage}</div>
+                                        )}
                                         {deleteMessage && (
                                             <div className="inventory-empty-state text-emerald-600">{deleteMessage}</div>
                                         )}
@@ -4611,6 +4859,7 @@
                                 type="button"
                                 className="inventory-secondary-button"
                                 onClick={() => {
+                                    closeAllFilterDropdowns();
                                     hideAssignmentModal();
                                     onClose();
                                 }}
