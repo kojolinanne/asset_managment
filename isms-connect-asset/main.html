@@ -198,6 +198,31 @@
     }
     .range-sep { color: var(--ink-300); font-size: 14px; font-weight: 500; }
 
+    /* 欄位排序按鈕 */
+    .th-inner {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .sort-btn {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 2px;
+      opacity: 0.35;
+      transition: opacity 0.15s;
+      flex-shrink: 0;
+    }
+    .sort-btn i { font-size: 9px; line-height: 1; }
+    .th-inner:hover .sort-btn { opacity: 0.7; }
+    .th-inner.asc  .sort-btn { opacity: 1; }
+    .th-inner.asc  .sort-btn .fa-sort-up   { color: var(--accent-500); }
+    .th-inner.asc  .sort-btn .fa-sort-down { color: var(--ink-300); }
+    .th-inner.desc .sort-btn { opacity: 1; }
+    .th-inner.desc .sort-btn .fa-sort-up   { color: var(--ink-300); }
+    .th-inner.desc .sort-btn .fa-sort-down { color: var(--accent-500); }
+
     .table-wrap {
       overflow-x: auto;
       border-radius: 12px;
@@ -287,6 +312,20 @@
       pointer-events: none;
     }
     .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* 使用狀態 badge */
+    .status-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .status-active   { background: #dcfce7; color: #15803d; }   /* 使用中 */
+    .status-inactive { background: #f1f5f9; color: #64748b; }   /* 停用中 */
+    .status-vm       { background: #ede9fe; color: #5b21b6; }   /* 已轉移至VM */
+    .status-default  { background: #f1f5f9; color: #475569; }
   </style>
 </head>
 <body>
@@ -342,13 +381,19 @@
 
     <!-- Filters -->
     <section class="card p-4 md:p-5 mb-5">
-      <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+      <div class="grid grid-cols-1 md:grid-cols-6 gap-3">
         <div class="md:col-span-2 relative">
           <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
           <input id="searchInput" class="field pl-9" placeholder="搜尋編號 / 名稱 / 說明 / 地點…" />
         </div>
         <select id="filterCategory" class="field"><option value="">全部類別</option></select>
         <select id="filterUnit" class="field"><option value="">全部權責單位</option></select>
+        <select id="filterStatus" class="field">
+          <option value="">全部狀態</option>
+          <option value="使用中">使用中</option>
+          <option value="停用中">停用中</option>
+          <option value="已轉移至VM">已轉移至VM</option>
+        </select>
         <div class="range-wrap" title="篩選資產價值範圍（數字）">
           <label><i class="fa-solid fa-chart-simple text-slate-400 mr-1"></i>價值</label>
           <input id="filterValueMin" class="range-input" type="number" min="1" max="12" placeholder="1" />
@@ -373,7 +418,12 @@
         <table class="isms" id="assetTable">
           <thead>
             <tr>
-              <th>資訊資產編號</th>
+              <th>
+                <span class="th-inner" id="thId" data-sort="ismsAssetId">
+                  資訊資產編號
+                  <span class="sort-btn"><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></span>
+                </span>
+              </th>
               <th>類別</th>
               <th>名稱</th>
               <th>說明</th>
@@ -383,7 +433,13 @@
               <th>機密性<span class="sub">Confidentiality</span></th>
               <th>完整性<span class="sub">Integrity</span></th>
               <th>可用性<span class="sub">Availability</span></th>
-              <th>資產價值<span class="sub">Asset Value</span></th>
+              <th>
+                <span class="th-inner" id="thValue" data-sort="assetValue">
+                  資產價值<span class="sub">Asset Value</span>
+                  <span class="sort-btn"><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></span>
+                </span>
+              </th>
+              <th>使用狀態<span class="sub">Status</span></th>
             </tr>
           </thead>
           <tbody id="assetTbody"></tbody>
@@ -398,7 +454,9 @@
   <script>
     const state = {
       all: [],
-      filtered: []
+      filtered: [],
+      sortKey: null,   // 'ismsAssetId' | 'assetValue' | null
+      sortDir: 'asc'   // 'asc' | 'desc'
     };
 
     const $ = (id) => document.getElementById(id);
@@ -462,6 +520,27 @@
       return wrap;
     }
 
+    function statusBadge(val) {
+      const span = document.createElement('span');
+      const s = (val === null || val === undefined) ? '' : String(val).trim();
+      if (!s) {
+        span.className = 'status-badge status-default';
+        span.textContent = '—';
+        return span;
+      }
+      if (s === '使用中') {
+        span.className = 'status-badge status-active';
+      } else if (s === '停用中') {
+        span.className = 'status-badge status-inactive';
+      } else if (s === '已轉移至VM') {
+        span.className = 'status-badge status-vm';
+      } else {
+        span.className = 'status-badge status-default';
+      }
+      span.textContent = s;
+      return span;
+    }
+
     function makeCell(text, opts = {}) {
       const td = document.createElement('td');
       if (opts.className) td.className = opts.className;
@@ -484,7 +563,7 @@
       if (!state.filtered.length) {
         const tr = document.createElement('tr');
         const td = document.createElement('td');
-        td.colSpan = 11;
+        td.colSpan = 12;
         td.innerHTML = '';
         const wrap = document.createElement('div');
         wrap.className = 'empty-state';
@@ -529,6 +608,8 @@
         const tdA = document.createElement('td'); tdA.appendChild(pill(a.availability));    tr.appendChild(tdA);
         const tdV = document.createElement('td'); tdV.appendChild(valueBadge(a.assetValue)); tr.appendChild(tdV);
 
+        const tdSt = document.createElement('td'); tdSt.appendChild(statusBadge(a.status)); tr.appendChild(tdSt);
+
         // 整列標記：資產價值 ≥ 7
         const n = parseAssetValue(a.assetValue);
         if (n !== null && n >= 7) tr.classList.add('row-critical');
@@ -572,6 +653,7 @@
       const kw = $('searchInput').value.trim().toLowerCase();
       const cat = $('filterCategory').value;
       const unit = $('filterUnit').value;
+      const statusVal = $('filterStatus').value;
       const rawMin = $('filterValueMin').value.trim();
       const rawMax = $('filterValueMax').value.trim();
       const valMin = rawMin !== '' ? Number(rawMin) : null;
@@ -580,6 +662,7 @@
       state.filtered = state.all.filter(a => {
         if (cat && (a.category || '').trim() !== cat) return false;
         if (unit && (a.responsibleUnit || '').trim() !== unit) return false;
+        if (statusVal && (a.status || '').trim() !== statusVal) return false;
         if (valMin !== null || valMax !== null) {
           const n = parseAssetValue(a.assetValue);
           if (n === null) return false;
@@ -596,13 +679,57 @@
 
       $('countShown').textContent = state.filtered.length.toLocaleString();
       $('countTotal').textContent = state.all.length.toLocaleString();
+      applySortAndRender();
+    }
+
+    function applySortAndRender() {
+      if (state.sortKey) {
+        const dir = state.sortDir === 'asc' ? 1 : -1;
+        state.filtered.sort((a, b) => {
+          if (state.sortKey === 'assetValue') {
+            const na = parseAssetValue(a.assetValue);
+            const nb = parseAssetValue(b.assetValue);
+            if (na === null && nb === null) return 0;
+            if (na === null) return 1;
+            if (nb === null) return -1;
+            return (na - nb) * dir;
+          }
+          // ismsAssetId：字串自然排序
+          const sa = (a.ismsAssetId || '').toString();
+          const sb = (b.ismsAssetId || '').toString();
+          return sa.localeCompare(sb, 'zh-TW', { numeric: true }) * dir;
+        });
+      }
       renderTable();
+    }
+
+    function updateSortUI() {
+      ['thId', 'thValue'].forEach(id => {
+        const el = $(id);
+        if (!el) return;
+        el.classList.remove('asc', 'desc');
+        if (el.dataset.sort === state.sortKey) {
+          el.classList.add(state.sortDir);
+        }
+      });
+    }
+
+    function toggleSort(key) {
+      if (state.sortKey === key) {
+        state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.sortKey = key;
+        state.sortDir = 'asc';
+      }
+      updateSortUI();
+      applySortAndRender();
     }
 
     function clearFilters() {
       $('searchInput').value = '';
       $('filterCategory').value = '';
       $('filterUnit').value = '';
+      $('filterStatus').value = '';
       $('filterValueMin').value = '';
       $('filterValueMax').value = '';
       applyFilters();
@@ -613,10 +740,10 @@
         showToast('沒有資料可匯出');
         return;
       }
-      const headers = ['資訊資產編號', '類別', '名稱', '說明', '數量', '地點', '權責單位', '機密性', '完整性', '可用性', '資產價值'];
+      const headers = ['資訊資產編號', '類別', '名稱', '說明', '數量', '地點', '權責單位', '機密性', '完整性', '可用性', '資產價值', '使用狀態'];
       const rows = state.filtered.map(a => [
         a.ismsAssetId, a.category, a.name, a.description, a.quantity,
-        a.location, a.responsibleUnit, a.confidentiality, a.integrity, a.availability, a.assetValue
+        a.location, a.responsibleUnit, a.confidentiality, a.integrity, a.availability, a.assetValue, a.status
       ]);
       const csv = [headers, ...rows]
         .map(r => r.map(c => `"${String(c == null ? '' : c).replace(/"/g, '""')}"`).join(','))
@@ -675,11 +802,14 @@
       $('searchInput').addEventListener('input', applyFilters);
       $('filterCategory').addEventListener('change', applyFilters);
       $('filterUnit').addEventListener('change', applyFilters);
+      $('filterStatus').addEventListener('change', applyFilters);
       $('filterValueMin').addEventListener('input', applyFilters);
       $('filterValueMax').addEventListener('input', applyFilters);
       $('btnClear').addEventListener('click', clearFilters);
       $('btnRefresh').addEventListener('click', loadData);
       $('btnExport').addEventListener('click', exportCsv);
+      $('thId').addEventListener('click', () => toggleSort('ismsAssetId'));
+      $('thValue').addEventListener('click', () => toggleSort('assetValue'));
       loadData();
     });
   </script>
