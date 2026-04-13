@@ -5996,7 +5996,7 @@
                     : 'flex justify-start gap-2';
                 const actionButtonClass = (tone) => (
                     mobile
-                        ? `inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold ${tone}`
+                        ? `inline-flex min-h-[36px] items-center justify-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold ${tone}`
                         : `${tone} transition-colors p-1`
                 );
                 const handleAction = (callback) => (event) => {
@@ -6066,7 +6066,7 @@
                         )}
 
                         {assetState.isTask && mobile && (
-                            <span className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-medium text-slate-500">
+                            <span className="inline-flex min-h-[36px] items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-1.5 text-[11px] font-medium text-slate-500">
                                 <i className="fa-solid fa-lock text-sm"></i>
                                 <span>僅限盤點</span>
                             </span>
@@ -6083,7 +6083,7 @@
                                 type="button"
                                 onClick={handleAction(() => onCancel(asset.assetId, asset.status))}
                                 className={mobile
-                                    ? 'inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700'
+                                    ? 'inline-flex min-h-[36px] items-center justify-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-[11px] font-semibold text-rose-700'
                                     : 'px-3 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium'}
                             >
                                 <i className="fa-solid fa-ban text-sm"></i>
@@ -6096,7 +6096,7 @@
                                 type="button"
                                 onClick={handleAction(() => onRestore(asset.assetId))}
                                 className={mobile
-                                    ? 'inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-xs font-semibold text-yellow-700'
+                                    ? 'inline-flex min-h-[36px] items-center justify-center gap-1 rounded-lg border border-yellow-200 bg-yellow-50 px-2.5 py-1.5 text-[11px] font-semibold text-yellow-700'
                                     : 'px-3 py-1 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors text-sm font-medium'}
                             >
                                 <i className="fa-solid fa-rotate-left text-sm"></i>
@@ -6180,7 +6180,7 @@
                             return (
                                 <div
                                     key={rowKey}
-                                    className={`rounded-2xl border shadow-sm overflow-hidden transition-all ${assetState.cardSurfaceClass} ${assetState.borderClass} ${assetState.rowSelectedClass}`}
+                                    className={`rounded-xl border shadow-sm overflow-hidden transition-all ${assetState.cardSurfaceClass} ${assetState.borderClass} ${assetState.rowSelectedClass}`}
                                 >
                                     <div
                                         role="button"
@@ -6193,12 +6193,12 @@
                                                 toggleExpandedAsset(rowKey);
                                             }
                                         }}
-                                        className="w-full text-left px-4 py-4 cursor-pointer"
+                                        className="w-full text-left px-3 py-2.5 cursor-pointer"
                                         aria-expanded={isExpanded}
                                         aria-controls={detailsId}
                                     >
-                                        <div className="flex items-start gap-3">
-                                            <div className="pt-1">
+                                        <div className="flex items-start gap-2.5">
+                                            <div className="pt-0.5">
                                                 {assetState.isSelectable ? (
                                                     <input
                                                         type="checkbox"
@@ -6214,13 +6214,12 @@
                                                 )}
                                             </div>
 
-                                            <div className="min-w-0 flex-1 space-y-3">
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <div className="min-w-0">
-                                                        <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-400">Asset</div>
-                                                        <div className="mt-1 font-mono text-sm font-semibold text-slate-800 break-all">{asset.assetId}</div>
+                                            <div className="min-w-0 flex-1 space-y-2">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="font-mono text-sm font-semibold text-slate-800 break-all leading-tight">{asset.assetId}</div>
                                                     </div>
-                                                    <div className="flex flex-col items-end gap-2">
+                                                    <div className="flex flex-wrap items-center justify-end gap-1.5 pl-2">
                                                         {renderStatusBadge(assetState, true)}
                                                         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${systemBadgeClass}`}>
                                                             {asset.systemCategory}
@@ -6228,31 +6227,22 @@
                                                     </div>
                                                 </div>
 
-                                                <div className="grid grid-cols-2 gap-3 text-sm">
-                                                    <div className="min-w-0">
-                                                        <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">使用人</div>
-                                                        <div className="mt-1 text-slate-700 truncate">{asset.userName || '-'}</div>
-                                                    </div>
-                                                    <div className="min-w-0">
-                                                        <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">保管人</div>
-                                                        <div className="mt-1 text-slate-700 truncate">{asset.leader || '-'}</div>
-                                                    </div>
-                                                    <div className="col-span-2 min-w-0">
-                                                        <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">位置</div>
-                                                        <div className="mt-1 text-slate-700 truncate">{asset.location || '-'}</div>
-                                                    </div>
+                                                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] leading-snug text-slate-600">
+                                                    <span className="min-w-0 truncate"><span className="text-slate-400">使用</span> {asset.userName || '-'}</span>
+                                                    <span className="min-w-0 truncate"><span className="text-slate-400">保管</span> {asset.leader || '-'}</span>
+                                                    <span className="min-w-0 flex-[1_1_100%] truncate"><span className="text-slate-400">位置</span> {asset.location || '-'}</span>
                                                 </div>
 
-                                                <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
-                                                    <div className="flex flex-wrap items-center gap-2">
+                                                <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                                                    <div className="flex flex-wrap items-center gap-1.5">
                                                         {assetState.isTask && (
-                                                            <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2 py-1 font-medium text-teal-700">
+                                                            <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 px-2 py-0.5 font-medium text-teal-700">
                                                                 <i className="fa-solid fa-clipboard-check text-[10px]"></i>
                                                                 <span>盤點任務</span>
                                                             </span>
                                                         )}
                                                         {assetState.isGroupMemberAsset && (
-                                                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-1 font-medium text-blue-700">
+                                                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 font-medium text-blue-700">
                                                                 <i className="fa-solid fa-users text-[10px]"></i>
                                                                 <span>同組資產</span>
                                                             </span>
@@ -6268,46 +6258,46 @@
                                     </div>
 
                                     {isExpanded && (
-                                        <div id={detailsId} className="border-t border-slate-200/80 bg-white/90 px-4 py-4 space-y-4">
-                                            <div className="grid grid-cols-1 gap-3">
-                                                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                                    <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">財產名稱</div>
-                                                    <div className="mt-1 text-sm font-semibold text-slate-800 break-words">{asset.assetName || '-'}</div>
+                                        <div id={detailsId} className="border-t border-slate-200/80 bg-white/90 px-3 py-3 space-y-3">
+                                            <div className="grid grid-cols-1 gap-2">
+                                                <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
+                                                    <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400">財產名稱</div>
+                                                    <div className="mt-0.5 text-sm font-semibold leading-snug text-slate-800 break-words">{asset.assetName || '-'}</div>
                                                 </div>
 
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                                        <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{getAssetAliasLabel(asset)}</div>
-                                                        <div className="mt-1 text-sm text-slate-700 break-all">
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
+                                                        <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{getAssetAliasLabel(asset)}</div>
+                                                        <div className="mt-0.5 text-xs leading-snug text-slate-700 break-all">
                                                             <AssetAliasValue asset={asset} />
                                                         </div>
                                                     </div>
-                                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                                        <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">型號/廠牌</div>
-                                                        <div className="mt-1 text-sm text-slate-700 break-all">{asset.modelBrand || '-'}</div>
+                                                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
+                                                        <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400">型號/廠牌</div>
+                                                        <div className="mt-0.5 text-xs leading-snug text-slate-700 break-all">{asset.modelBrand || '-'}</div>
                                                     </div>
-                                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                                        <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">組別</div>
-                                                        <div className="mt-1 text-sm text-slate-700">{asset.group || '未分組'}</div>
+                                                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
+                                                        <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400">組別</div>
+                                                        <div className="mt-0.5 text-xs leading-snug text-slate-700">{asset.group || '未分組'}</div>
                                                     </div>
-                                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                                        <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">財產類別</div>
-                                                        <div className="mt-1 text-sm text-slate-700">{asset.category || '-'}</div>
+                                                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
+                                                        <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400">財產類別</div>
+                                                        <div className="mt-0.5 text-xs leading-snug text-slate-700">{asset.category || '-'}</div>
                                                     </div>
                                                 </div>
 
                                                 {assetState.inventoryEntry && (
-                                                    <div className="rounded-xl border border-teal-100 bg-teal-50 px-3 py-3 text-sm text-teal-800">
+                                                    <div className="rounded-lg border border-teal-100 bg-teal-50 px-2.5 py-2 text-xs text-teal-800">
                                                         <div className="font-medium">盤點狀態：{assetState.inventoryStatus || '未盤點'}</div>
                                                         {assetState.inventorySessionCount > 0 && (
-                                                            <div className="mt-1 text-xs text-teal-700">進行中會話 {assetState.inventorySessionCount} 個</div>
+                                                            <div className="mt-0.5 text-[11px] text-teal-700">進行中會話 {assetState.inventorySessionCount} 個</div>
                                                         )}
                                                     </div>
                                                 )}
                                             </div>
 
-                                            <div className="space-y-2">
-                                                <div className="text-[11px] font-medium uppercase tracking-wide text-slate-400">快速操作</div>
+                                            <div className="space-y-1.5">
+                                                <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400">快速操作</div>
                                                 {renderActionButtons(assetState, true)}
                                             </div>
                                         </div>
