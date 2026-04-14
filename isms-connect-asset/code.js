@@ -6,6 +6,12 @@
  * Web App 入口點
  */
 function doGet(e) {
+  const email = Session.getActiveUser().getEmail();
+  // 白名單檢查 — 不在 ISMS 試算表「權限」工作表 A 欄者一律拒絕
+  if (!isInWhitelist_(email)) {
+    return createAccessDeniedPage_(email);
+  }
+
   const page = (e && e.parameter && e.parameter.page) ? e.parameter.page : '';
   const isMain = page === 'main';
   const html = HtmlService.createHtmlOutputFromFile(isMain ? 'main' : 'index');
@@ -13,6 +19,25 @@ function doGet(e) {
   html.addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
   html.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   return html;
+}
+
+/**
+ * 拒絕存取頁面
+ */
+function createAccessDeniedPage_(email) {
+  const safeEmail = String(email || '(unknown)').replace(/[<>&"]/g, c => ({
+    '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;'
+  }[c]));
+  return HtmlService.createHtmlOutput(
+    '<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8"><title>存取被拒</title>' +
+    '<style>body{font-family:"Noto Sans TC",sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;}' +
+    '.box{background:white;border-radius:12px;padding:40px 48px;box-shadow:0 4px 20px rgba(15,23,42,0.08);max-width:480px;text-align:center;}' +
+    '.icon{font-size:48px;color:#dc2626;margin-bottom:16px;}h1{color:#0f172a;font-size:20px;margin:0 0 12px;}' +
+    'p{color:#64748b;font-size:14px;line-height:1.6;margin:8px 0;}.email{font-family:Menlo,monospace;background:#f1f5f9;padding:2px 8px;border-radius:4px;}</style></head>' +
+    '<body><div class="box"><div class="icon">⛔</div><h1>存取被拒</h1>' +
+    '<p>您的帳號 <span class="email">' + safeEmail + '</span> 不在資訊資產系統的授權名單中。</p>' +
+    '<p>如需存取權限,請聯絡系統管理員將您加入「權限」工作表的白名單。</p></div></body></html>'
+  );
 }
 
 // ==========================================
@@ -31,25 +56,75 @@ function getCurrentUser() {
 }
 
 /**
- * 檢查是否為管理員
+ * 讀取 ISMS 權限工作表,回傳 {whitelist:Set, admins:Set}
+ * 結果快取 5 分鐘,減少試算表存取
  */
-function checkIsAdmin_(email) {
-  try {
-    const ss = SpreadsheetApp.openById(CONFIG.ASSET_SPREADSHEET_ID);
-    const sheet = ss.getSheetByName(CONFIG.ADMIN_LIST_SHEET_NAME);
-    if (!sheet) return false;
+function getPermissionLists_() {
+  const cache = CacheService.getScriptCache();
+  const cacheKey = 'isms_permission_lists_v1';
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    try {
+      const obj = JSON.parse(cached);
+      return { whitelist: new Set(obj.whitelist || []), admins: new Set(obj.admins || []) };
+    } catch (_) { /* fall through to fresh read */ }
+  }
 
-    const data = sheet.getDataRange().getValues();
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][0] && data[i][0].toString().toLowerCase() === email.toLowerCase()) {
-        return true;
+  const whitelist = new Set();
+  const admins = new Set();
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.ISMS_SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(CONFIG.ISMS_PERMISSION_SHEET_NAME);
+    if (sheet && sheet.getLastRow() >= 1) {
+      // 讀 A、B 兩欄(可能有表頭,從第 1 列開始全收,toLowerCase 後比對自然會排除非 email)
+      const data = sheet.getRange(1, 1, sheet.getLastRow(), 2).getValues();
+      for (let i = 0; i < data.length; i++) {
+        const a = String(data[i][0] || '').trim().toLowerCase();
+        const b = String(data[i][1] || '').trim().toLowerCase();
+        if (a && a.indexOf('@') > 0) whitelist.add(a);
+        if (b && b.indexOf('@') > 0) {
+          admins.add(b);
+          whitelist.add(b); // 管理員自動視為白名單
+        }
       }
     }
-    return false;
   } catch (e) {
-    console.error('檢查管理員權限失敗:', e);
-    return false;
+    console.error('讀取權限工作表失敗:', e);
   }
+
+  try {
+    cache.put(cacheKey, JSON.stringify({
+      whitelist: Array.from(whitelist),
+      admins: Array.from(admins)
+    }), 300); // 5 分鐘
+  } catch (_) {}
+
+  return { whitelist, admins };
+}
+
+/**
+ * 清除權限快取(改完權限工作表後可手動執行)
+ */
+function clearPermissionCache() {
+  CacheService.getScriptCache().remove('isms_permission_lists_v1');
+}
+
+/**
+ * 檢查是否在白名單(A 欄或 B 欄)
+ */
+function isInWhitelist_(email) {
+  if (!email) return false;
+  const lists = getPermissionLists_();
+  return lists.whitelist.has(String(email).toLowerCase().trim());
+}
+
+/**
+ * 檢查是否為管理員(B 欄)
+ */
+function checkIsAdmin_(email) {
+  if (!email) return false;
+  const lists = getPermissionLists_();
+  return lists.admins.has(String(email).toLowerCase().trim());
 }
 
 /**

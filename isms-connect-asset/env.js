@@ -19,7 +19,10 @@ const CONFIG = {
   // 操作紀錄(新增/編輯/刪除的稽核 log)
   ISMS_OPERATION_LOG_SHEET_NAME: '資訊資產操作紀錄',
 
-  // 管理員名單
+  // 權限工作表(位於 ISMS 試算表): A 欄=白名單 Email、B 欄=管理員 Email
+  ISMS_PERMISSION_SHEET_NAME: '權限',
+
+  // 管理員名單(legacy,位於主試算表;已停用,改用 ISMS_PERMISSION_SHEET_NAME)
   ADMIN_LIST_SHEET_NAME: '管理員名單'
 };
 
