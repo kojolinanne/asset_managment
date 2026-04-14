@@ -402,13 +402,31 @@ function createIsmsAsset(form) {
     if (!sheet) return { success: false, error: '找不到資訊資產工作表' };
 
     const idx = ISMS_ASSET_COLUMN_INDICES;
-    // 類別(B)、組別(S) 寫入「代號」(下拉選單 C 欄)，因此比對也用代號
-    // 同時為相容舊資料，若既有列是中文(顯示名)也視為同組
+    // 序號偵測策略：
+    // (1) 主：掃 A 欄編號本身，比對 `{groupCode}-{categoryCode}-\d+` 抽尾號
+    //     — 這是唯一真相，避免 T 欄為空或 B/S 欄資料不一致造成誤判
+    // (2) 備援：若列 A 欄無法解析，再看 B/S 欄是否相符且 T 欄是有效數字
+    // (3) 為避免萬一 nextSerial 仍撞號，最終再迴圈遞增直到 A 欄沒有這個 ID
+    const escapeRegExp = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const idPattern = new RegExp('^' + escapeRegExp(groupCode) + '-' + escapeRegExp(categoryCode) + '-(\\d+)$', 'i');
+    const existingIds = new Set();
     let maxSerial = 0;
+
     if (sheet.getLastRow() > 1) {
       const data = sheet.getDataRange().getValues();
       for (let r = 1; r < data.length; r++) {
         const row = data[r];
+        const rowId = String(row[idx.ISMS_ASSET_ID - 1] || '').trim();
+        if (rowId) existingIds.add(rowId.toLowerCase());
+
+        const m = rowId.match(idPattern);
+        if (m) {
+          const serial = Number(m[1]);
+          if (!isNaN(serial) && serial > maxSerial) maxSerial = serial;
+          continue;
+        }
+
+        // 備援：A 欄不符合格式時，看 B/S 欄 + T 欄
         const rowCategory = String(row[idx.CATEGORY - 1] || '').trim();
         const rowGroup = String(row[idx.GROUP - 1] || '').trim();
         const categoryMatch = rowCategory === categoryCode || rowCategory === categoryDisplay;
@@ -419,9 +437,15 @@ function createIsmsAsset(form) {
       }
     }
 
-    const nextSerial = maxSerial + 1;
-    const serialPadded = String(nextSerial).padStart(3, '0');
-    const ismsAssetId = `${groupCode}-${categoryCode}-${serialPadded}`;
+    // 第三道防線：遞增直到 A 欄絕對不存在此 ID
+    let nextSerial = maxSerial + 1;
+    let serialPadded = String(nextSerial).padStart(3, '0');
+    let ismsAssetId = `${groupCode}-${categoryCode}-${serialPadded}`;
+    while (existingIds.has(ismsAssetId.toLowerCase())) {
+      nextSerial += 1;
+      serialPadded = String(nextSerial).padStart(3, '0');
+      ismsAssetId = `${groupCode}-${categoryCode}-${serialPadded}`;
+    }
     const assetValue = c + i + a;
 
     // 組 21 格陣列（A~U，對應 ISMS_ASSET_COLUMN_INDICES 1~21）
