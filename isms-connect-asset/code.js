@@ -13,9 +13,10 @@ function doGet(e) {
   }
 
   const page = (e && e.parameter && e.parameter.page) ? e.parameter.page : '';
-  const isMain = page === 'main';
-  const html = HtmlService.createHtmlOutputFromFile(isMain ? 'main' : 'index');
-  html.setTitle(isMain ? '資訊資產清單' : '資產與資訊資產對照管理');
+  // 預設頁面 = 資訊資產清單儀表板 (index.html);?page=connect → 資產對照管理 (connect.html)
+  const isConnect = page === 'connect';
+  const html = HtmlService.createHtmlOutputFromFile(isConnect ? 'connect' : 'index');
+  html.setTitle(isConnect ? '資產與資訊資產對照管理' : '資訊資產清單');
   html.addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
   html.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   return html;
