@@ -16,6 +16,9 @@ const CONFIG = {
   MAPPING_SHEET_NAME: '資產對照表',
   DROPDOWN_SHEET_NAME: '下拉選單',
 
+  // 操作紀錄(新增/編輯/刪除的稽核 log)
+  ISMS_OPERATION_LOG_SHEET_NAME: '資訊資產操作紀錄',
+
   // 管理員名單
   ADMIN_LIST_SHEET_NAME: '管理員名單'
 };
@@ -99,4 +102,16 @@ const MAPPING_COLUMN_INDICES = {
   CREATED_TIME: 3,       // C欄: 建立時間
   CREATED_BY: 4,         // D欄: 建立人
   REMARKS: 5             // E欄: 備註
+};
+
+// 資訊資產操作紀錄欄位索引
+const ISMS_OP_LOG_COLUMN_INDICES = {
+  TIMESTAMP: 1,       // A欄: ISO 時間戳
+  OPERATOR_EMAIL: 2,  // B欄: 操作者 Email
+  OPERATION_TYPE: 3,  // C欄: 新增 / 編輯 / 刪除
+  ISMS_ASSET_ID: 4,   // D欄: 目標資訊資產編號
+  CHANGED_FIELDS: 5,  // E欄: 變更欄位清單(逗號分隔;CREATE/DELETE 留空)
+  BEFORE_JSON: 6,     // F欄: 變更前完整快照(JSON)
+  AFTER_JSON: 7,      // G欄: 變更後完整快照(JSON)
+  REMARKS: 8          // H欄: 備註(刪除原因等)
 };

@@ -603,6 +603,46 @@
     .preview-label { color: var(--ink-700); font-weight: 500; }
     .preview-value { font-weight: 700; color: #1d4ed8; font-family: ui-monospace, Menlo, monospace; }
     .preview-value.muted { color: #94a3b8; font-weight: 500; }
+
+    /* 表格操作欄 */
+    .col-actions-th { width: 96px; text-align: center; }
+    .col-actions { white-space: nowrap; width: 96px; text-align: center; }
+    .action-btn {
+      background: transparent; border: none; padding: 6px 8px;
+      color: var(--ink-500); cursor: pointer; border-radius: 6px;
+      transition: background 0.15s, color 0.15s;
+      font-size: 13px;
+    }
+    .action-btn + .action-btn { margin-left: 2px; }
+    .action-btn:hover:not(:disabled) { background: #f1f5f9; }
+    .action-btn.edit:hover:not(:disabled)   { color: #2563eb; }
+    .action-btn.delete:hover:not(:disabled) { color: #dc2626; }
+    .action-btn:disabled { color: #cbd5e1; cursor: not-allowed; background: transparent; }
+
+    /* 危險動作按鈕(刪除確認) */
+    .btn-modal-danger {
+      padding: 10px 24px; border-radius: 8px;
+      background: linear-gradient(135deg, #dc2626, #b91c1c);
+      color: white; font-weight: 600; font-size: 14px;
+      cursor: pointer; transition: all 0.2s;
+      display: inline-flex; align-items: center; gap: 8px;
+      border: none;
+    }
+    .btn-modal-danger:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(220,38,38,0.3); }
+    .btn-modal-danger:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .delete-warn {
+      background: #fef2f2; border: 1px solid #fecaca;
+      border-radius: 10px; padding: 12px 14px; margin-bottom: 16px;
+      font-size: 13px; color: #991b1b;
+    }
+    .delete-target {
+      background: #f8fafc; border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 14px; margin-bottom: 14px;
+      font-size: 13px;
+    }
+    .delete-target .tid { font-family: ui-monospace, Menlo, monospace; font-weight: 700; color: #1d4ed8; }
+    .delete-target .tname { color: var(--ink-700); }
   </style>
 </head>
 <body>
@@ -740,6 +780,7 @@
                 </span>
               </th>
               <th>使用狀態<span class="sub">Status</span></th>
+              <th class="col-actions-th">操作</th>
             </tr>
           </thead>
           <tbody id="assetTbody"></tbody>
@@ -868,13 +909,119 @@
     </div>
   </div>
 
+  <!-- Edit Asset Modal -->
+  <div class="modal-overlay" id="editModal">
+    <div class="modal-box create-box">
+      <div class="modal-title"><i class="fa-solid fa-pen mr-2 text-blue-600"></i>編輯資訊資產</div>
+      <div class="modal-sub">類別、組別與編號不可修改。CIA 調整後資產價值會自動重算。</div>
+
+      <div class="form-grid">
+        <div class="form-field">
+          <label class="form-label">編號(不可修改)</label>
+          <input id="editId" class="form-input" type="text" readonly style="background:#f8fafc;color:#64748b;" />
+        </div>
+        <div class="form-field">
+          <label class="form-label">組別(不可修改)</label>
+          <input id="editGroup" class="form-input" type="text" readonly style="background:#f8fafc;color:#64748b;" />
+        </div>
+        <div class="form-field full">
+          <label class="form-label">類別(不可修改)</label>
+          <input id="editCategory" class="form-input" type="text" readonly style="background:#f8fafc;color:#64748b;" />
+        </div>
+        <div class="form-field full">
+          <label class="form-label" for="editName">資產名稱<span class="req">*</span></label>
+          <input id="editName" class="form-input" type="text" maxlength="100" />
+        </div>
+        <div class="form-field full">
+          <label class="form-label" for="editDesc">說明</label>
+          <textarea id="editDesc" class="form-textarea" rows="3"></textarea>
+        </div>
+        <div class="form-field full">
+          <label class="form-label" for="editStatus">使用狀態<span class="req">*</span></label>
+          <select id="editStatus" class="form-select"><option value="">請選擇</option></select>
+        </div>
+        <div class="form-field full">
+          <label class="form-label">CIA 評估(1 低 ~ 4 高)<span class="req">*</span></label>
+          <div class="cia-group">
+            <div>
+              <div class="form-hint" style="margin-bottom:4px;">機密性 O</div>
+              <select id="editC" class="form-select" style="width:100%;">
+                <option value="1">1</option><option value="2">2</option>
+                <option value="3">3</option><option value="4">4</option>
+              </select>
+            </div>
+            <div>
+              <div class="form-hint" style="margin-bottom:4px;">完整性 P</div>
+              <select id="editI" class="form-select" style="width:100%;">
+                <option value="1">1</option><option value="2">2</option>
+                <option value="3">3</option><option value="4">4</option>
+              </select>
+            </div>
+            <div>
+              <div class="form-hint" style="margin-bottom:4px;">可用性 Q</div>
+              <select id="editA" class="form-select" style="width:100%;">
+                <option value="1">1</option><option value="2">2</option>
+                <option value="3">3</option><option value="4">4</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="preview-panel">
+        <div class="preview-row">
+          <span class="preview-label"><i class="fa-solid fa-gauge-high mr-1 text-slate-400"></i>資產價值 (O+P+Q)</span>
+          <span class="preview-value" id="editPreviewValue">6</span>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-modal-cancel" id="btnEditCancel">取消</button>
+        <button class="btn-modal-confirm" id="btnEditConfirm">
+          <i class="fa-solid fa-check"></i>儲存變更
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirm Modal -->
+  <div class="modal-overlay" id="deleteModal">
+    <div class="modal-box">
+      <div class="modal-title"><i class="fa-solid fa-triangle-exclamation mr-2 text-red-600"></i>確認刪除資訊資產</div>
+      <div class="modal-sub">此動作會從資訊資產清單移除該列。</div>
+
+      <div class="delete-target">
+        <div>編號:<span class="tid" id="deleteTargetId">—</span></div>
+        <div style="margin-top:4px;">名稱:<span class="tname" id="deleteTargetName">—</span></div>
+      </div>
+
+      <div class="delete-warn">
+        <i class="fa-solid fa-circle-info mr-1"></i>此動作無法復原,但完整快照會保存於「資訊資產操作紀錄」工作表供稽核還原。
+      </div>
+
+      <div class="form-field full" style="margin-bottom:16px;">
+        <label class="form-label" for="deleteReason">刪除原因(選填)</label>
+        <textarea id="deleteReason" class="form-textarea" rows="2" placeholder="例如:誤建、重複、設備已汰換..."></textarea>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-modal-cancel" id="btnDeleteCancel">取消</button>
+        <button class="btn-modal-danger" id="btnDeleteConfirm">
+          <i class="fa-solid fa-trash"></i>確認刪除
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const state = {
       all: [],
       filtered: [],
       sortKey: null,   // 'ismsAssetId' | 'assetValue' | null
       sortDir: 'asc',  // 'asc' | 'desc'
-      dropdowns: null  // { categories, groups, statuses } — 快取
+      dropdowns: null, // { categories, groups, statuses } — 快取
+      currentUser: null, // { email, isAdmin }
+      deletingId: null  // 目前刪除 modal 的目標
     };
 
     const $ = (id) => document.getElementById(id);
@@ -1029,7 +1176,7 @@
       if (!state.filtered.length) {
         const tr = document.createElement('tr');
         const td = document.createElement('td');
-        td.colSpan = 12;
+        td.colSpan = 13;
         td.innerHTML = '';
         const wrap = document.createElement('div');
         wrap.className = 'empty-state';
@@ -1075,6 +1222,25 @@
         const tdV = document.createElement('td'); tdV.appendChild(valueBadge(a.assetValue)); tr.appendChild(tdV);
 
         const tdSt = document.createElement('td'); tdSt.appendChild(statusBadge(a.status)); tr.appendChild(tdSt);
+
+        // 操作欄
+        const tdAct = document.createElement('td');
+        tdAct.className = 'col-actions';
+        const editBtn = document.createElement('button');
+        editBtn.className = 'action-btn edit';
+        editBtn.title = '編輯';
+        editBtn.dataset.id = a.ismsAssetId || '';
+        editBtn.innerHTML = '<i class="fa-solid fa-pen"></i>';
+        tdAct.appendChild(editBtn);
+        const delBtn = document.createElement('button');
+        delBtn.className = 'action-btn delete';
+        delBtn.dataset.id = a.ismsAssetId || '';
+        const isAdmin = !!(state.currentUser && state.currentUser.isAdmin);
+        delBtn.disabled = !isAdmin;
+        delBtn.title = isAdmin ? '刪除' : '僅管理員可刪除';
+        delBtn.innerHTML = '<i class="fa-solid fa-trash"></i>';
+        tdAct.appendChild(delBtn);
+        tr.appendChild(tdAct);
 
         // 整列標記：資產價值 ≥ 7
         const n = parseAssetValue(a.assetValue);
@@ -1657,6 +1823,152 @@
         });
     }
 
+    // ============== 當前使用者(供 isAdmin 判斷) ==============
+    function loadCurrentUser() {
+      google.script.run
+        .withSuccessHandler(res => {
+          state.currentUser = res || null;
+          // 若表格已渲染,重新刷新以更新刪除按鈕 disabled 狀態
+          if (state.filtered && state.filtered.length) renderTable();
+        })
+        .withFailureHandler(err => console.warn('getCurrentUser 失敗:', err))
+        .getCurrentUser();
+    }
+
+    // ============== 編輯資訊資產 ==============
+    function openEditModal(ismsAssetId) {
+      const asset = state.all.find(a => (a.ismsAssetId || '') === ismsAssetId);
+      if (!asset) { showToast('找不到資產:' + ismsAssetId); return; }
+
+      $('editId').value = asset.ismsAssetId || '';
+      $('editCategory').value = asset.category || '';
+      $('editGroup').value = asset.group || '';
+      $('editName').value = asset.name || '';
+      $('editDesc').value = asset.description || '';
+
+      // 狀態下拉(用已快取的 dropdowns)
+      const statusSel = $('editStatus');
+      while (statusSel.options.length > 1) statusSel.remove(1);
+      const statuses = (state.dropdowns && state.dropdowns.statuses) || [];
+      statuses.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s.display;
+        opt.textContent = s.display;
+        statusSel.appendChild(opt);
+      });
+      statusSel.value = asset.status || '';
+
+      const c = Math.max(1, Math.min(4, Number(asset.confidentiality) || 2));
+      const i = Math.max(1, Math.min(4, Number(asset.integrity) || 2));
+      const a = Math.max(1, Math.min(4, Number(asset.availability) || 2));
+      $('editC').value = String(c);
+      $('editI').value = String(i);
+      $('editA').value = String(a);
+      $('editPreviewValue').textContent = String(c + i + a);
+
+      $('editModal').classList.add('open');
+      setTimeout(() => $('editName').focus(), 100);
+    }
+
+    function closeEditModal() {
+      $('editModal').classList.remove('open');
+    }
+
+    function updateEditPreview() {
+      const c = Number($('editC').value) || 0;
+      const i = Number($('editI').value) || 0;
+      const a = Number($('editA').value) || 0;
+      $('editPreviewValue').textContent = String(c + i + a);
+    }
+
+    function submitEdit() {
+      const ismsAssetId = $('editId').value.trim();
+      const name = $('editName').value.trim();
+      const description = $('editDesc').value.trim();
+      const statusDisplay = $('editStatus').value.trim();
+      const c = Number($('editC').value);
+      const i = Number($('editI').value);
+      const a = Number($('editA').value);
+
+      if (!name) return showToast('請輸入資產名稱');
+      if (!statusDisplay) return showToast('請選擇使用狀態');
+      for (const [label, v] of [['機密性', c], ['完整性', i], ['可用性', a]]) {
+        if (!Number.isInteger(v) || v < 1 || v > 4) return showToast(`${label}必須介於 1~4`);
+      }
+
+      const btn = $('btnEditConfirm');
+      const origHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>儲存中...';
+
+      google.script.run
+        .withSuccessHandler(res => {
+          btn.disabled = false;
+          btn.innerHTML = origHtml;
+          if (res && res.success) {
+            closeEditModal();
+            showToast(res.noChange ? '沒有變更' : `已更新 ${res.ismsAssetId}`);
+            if (!res.noChange) loadData();
+          } else {
+            showToast('更新失敗:' + (res && res.error ? res.error : '未知錯誤'));
+          }
+        })
+        .withFailureHandler(err => {
+          btn.disabled = false;
+          btn.innerHTML = origHtml;
+          showToast('更新失敗:' + (err && err.message ? err.message : err));
+        })
+        .updateIsmsAsset({
+          ismsAssetId, name, description, statusDisplay,
+          confidentiality: c, integrity: i, availability: a
+        });
+    }
+
+    // ============== 刪除資訊資產 ==============
+    function openDeleteModal(ismsAssetId) {
+      const asset = state.all.find(a => (a.ismsAssetId || '') === ismsAssetId);
+      if (!asset) { showToast('找不到資產:' + ismsAssetId); return; }
+      state.deletingId = ismsAssetId;
+      $('deleteTargetId').textContent = asset.ismsAssetId || '';
+      $('deleteTargetName').textContent = asset.name || '(未命名)';
+      $('deleteReason').value = '';
+      $('deleteModal').classList.add('open');
+    }
+
+    function closeDeleteModal() {
+      $('deleteModal').classList.remove('open');
+      state.deletingId = null;
+    }
+
+    function submitDelete() {
+      if (!state.deletingId) return;
+      const reason = $('deleteReason').value.trim();
+
+      const btn = $('btnDeleteConfirm');
+      const origHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>刪除中...';
+
+      google.script.run
+        .withSuccessHandler(res => {
+          btn.disabled = false;
+          btn.innerHTML = origHtml;
+          if (res && res.success) {
+            showToast(`已刪除 ${res.ismsAssetId}`);
+            closeDeleteModal();
+            loadData();
+          } else {
+            showToast('刪除失敗:' + (res && res.error ? res.error : '未知錯誤'));
+          }
+        })
+        .withFailureHandler(err => {
+          btn.disabled = false;
+          btn.innerHTML = origHtml;
+          showToast('刪除失敗:' + (err && err.message ? err.message : err));
+        })
+        .deleteIsmsAsset(state.deletingId, reason);
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       $('searchInput').addEventListener('input', applyFilters);
       $('filterCategory').addEventListener('change', applyFilters);
@@ -1694,8 +2006,35 @@
         $(id).addEventListener('change', updateCreatePreview);
       });
 
+      // 編輯資產
+      $('btnEditCancel').addEventListener('click', closeEditModal);
+      $('btnEditConfirm').addEventListener('click', submitEdit);
+      $('editModal').addEventListener('click', e => { if (e.target === $('editModal')) closeEditModal(); });
+      ['editC', 'editI', 'editA'].forEach(id => {
+        $(id).addEventListener('change', updateEditPreview);
+      });
+
+      // 刪除資產
+      $('btnDeleteCancel').addEventListener('click', closeDeleteModal);
+      $('btnDeleteConfirm').addEventListener('click', submitDelete);
+      $('deleteModal').addEventListener('click', e => { if (e.target === $('deleteModal')) closeDeleteModal(); });
+
+      // 表格點擊委派(編輯/刪除按鈕)
+      $('assetTbody').addEventListener('click', e => {
+        const editBtn = e.target.closest('.action-btn.edit');
+        const delBtn = e.target.closest('.action-btn.delete');
+        if (editBtn) {
+          const id = editBtn.dataset.id;
+          if (id) openEditModal(id);
+        } else if (delBtn && !delBtn.disabled) {
+          const id = delBtn.dataset.id;
+          if (id) openDeleteModal(id);
+        }
+      });
+
       loadData();
       preloadDropdowns(); // 靜默預載,讓按「新增」時能立即開啟
+      loadCurrentUser();  // 取得當前使用者(供刪除按鈕權限判斷)
     });
   </script>
 </body>

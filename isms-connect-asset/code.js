@@ -466,15 +466,200 @@ function createIsmsAsset(form) {
     sheet.appendRow(row);
     SpreadsheetApp.flush(); // 強制同步寫入,避免後續讀取拿到 stale 資料
 
+    // 記錄操作日誌
+    const newRowIndex = sheet.getLastRow();
+    const snapshot = mapRowToIsmsAssetObject_(sheet.getRange(newRowIndex, 1, 1, 21).getValues()[0]);
+    logIsmsOperation_('新增', ismsAssetId, '', null, snapshot, '');
+
     return {
       success: true,
       ismsAssetId,
       serial: nextSerial,
       assetValue,
-      rowIndex: sheet.getLastRow() // 回傳寫入的列號,方便前端驗證
+      rowIndex: newRowIndex
     };
   } catch (e) {
     console.error('createIsmsAsset 錯誤:', e);
+    return { success: false, error: e.message };
+  } finally {
+    try { lock.releaseLock(); } catch (_) {}
+  }
+}
+
+// ==========================================
+// 編輯 / 刪除 / 操作紀錄
+// ==========================================
+
+/**
+ * 確保操作紀錄工作表存在,不存在則自動建立並寫入表頭
+ */
+function ensureOperationLogSheet_() {
+  const ss = SpreadsheetApp.openById(CONFIG.ISMS_SPREADSHEET_ID);
+  let sheet = ss.getSheetByName(CONFIG.ISMS_OPERATION_LOG_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(CONFIG.ISMS_OPERATION_LOG_SHEET_NAME);
+    sheet.getRange(1, 1, 1, 8).setValues([[
+      '時間戳', '操作者', '操作類型', '資訊資產編號',
+      '變更欄位', '變更前(JSON)', '變更後(JSON)', '備註'
+    ]]);
+    sheet.getRange(1, 1, 1, 8).setFontWeight('bold').setBackground('#f1f5f9');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+/**
+ * 寫入操作紀錄
+ * @param {string} operationType - '新增' / '編輯' / '刪除'
+ * @param {string} ismsAssetId - 目標編號
+ * @param {string} changedFields - 變更欄位 CSV(CREATE/DELETE 留空)
+ * @param {Object|null} beforeObj - 變更前快照(CREATE 時為 null)
+ * @param {Object|null} afterObj - 變更後快照(DELETE 時為 null)
+ * @param {string} remarks - 備註
+ */
+function logIsmsOperation_(operationType, ismsAssetId, changedFields, beforeObj, afterObj, remarks) {
+  try {
+    const sheet = ensureOperationLogSheet_();
+    const email = Session.getActiveUser().getEmail() || '(unknown)';
+    sheet.appendRow([
+      new Date().toISOString(),
+      email,
+      operationType,
+      ismsAssetId || '',
+      changedFields || '',
+      beforeObj ? JSON.stringify(beforeObj) : '',
+      afterObj ? JSON.stringify(afterObj) : '',
+      remarks || ''
+    ]);
+  } catch (e) {
+    console.error('logIsmsOperation_ 錯誤:', e);
+    // log 失敗不阻斷主操作
+  }
+}
+
+/**
+ * 依編號定位資訊資產列
+ * @param {string} ismsAssetId
+ * @returns {{rowIndex:number, rowData:any[]}|null}
+ */
+function findIsmsAssetRow_(ismsAssetId) {
+  const ss = SpreadsheetApp.openById(CONFIG.ISMS_SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(CONFIG.ISMS_ASSET_SHEET_NAME);
+  if (!sheet || sheet.getLastRow() <= 1) return null;
+  const idx = ISMS_ASSET_COLUMN_INDICES;
+  const data = sheet.getDataRange().getValues();
+  const target = String(ismsAssetId).trim().toLowerCase();
+  for (let r = 1; r < data.length; r++) {
+    const id = String(data[r][idx.ISMS_ASSET_ID - 1] || '').trim().toLowerCase();
+    if (id && id === target) {
+      return { rowIndex: r + 1, rowData: data[r], sheet: sheet };
+    }
+  }
+  return null;
+}
+
+/**
+ * 編輯資訊資產(可修改:名稱、說明、狀態、CIA)
+ */
+function updateIsmsAsset(form) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+
+    if (!form || typeof form !== 'object') {
+      return { success: false, error: '表單資料不正確' };
+    }
+    const ismsAssetId = (form.ismsAssetId || '').toString().trim();
+    const name = (form.name || '').toString().trim();
+    const description = (form.description || '').toString();
+    const statusDisplay = (form.statusDisplay || '').toString().trim();
+    const c = Number(form.confidentiality);
+    const i = Number(form.integrity);
+    const a = Number(form.availability);
+
+    if (!ismsAssetId) return { success: false, error: '資訊資產編號必填' };
+    if (!name) return { success: false, error: '資產名稱必填' };
+    const isValidCIA = (n) => Number.isInteger(n) && n >= 1 && n <= 4;
+    if (!isValidCIA(c) || !isValidCIA(i) || !isValidCIA(a)) {
+      return { success: false, error: 'CIA 三項必須是 1~4 的整數' };
+    }
+
+    const located = findIsmsAssetRow_(ismsAssetId);
+    if (!located) return { success: false, error: '找不到資產:' + ismsAssetId };
+
+    const idx = ISMS_ASSET_COLUMN_INDICES;
+    const sheet = located.sheet;
+    const rowIndex = located.rowIndex;
+    const before = mapRowToIsmsAssetObject_(located.rowData);
+    const assetValue = c + i + a;
+
+    // 比對差異
+    const changed = [];
+    if (before.name !== name) changed.push('name');
+    if (before.description !== description) changed.push('description');
+    if (before.status !== statusDisplay) changed.push('status');
+    if (Number(before.confidentiality) !== c) changed.push('confidentiality');
+    if (Number(before.integrity) !== i) changed.push('integrity');
+    if (Number(before.availability) !== a) changed.push('availability');
+    if (Number(before.assetValue) !== assetValue) changed.push('assetValue');
+
+    if (changed.length === 0) {
+      return { success: true, noChange: true, ismsAssetId };
+    }
+
+    // 逐欄寫入
+    sheet.getRange(rowIndex, idx.NAME).setValue(name);
+    sheet.getRange(rowIndex, idx.DESCRIPTION).setValue(description);
+    sheet.getRange(rowIndex, idx.STATUS).setValue(statusDisplay);
+    sheet.getRange(rowIndex, idx.CONFIDENTIALITY).setValue(c);
+    sheet.getRange(rowIndex, idx.INTEGRITY).setValue(i);
+    sheet.getRange(rowIndex, idx.AVAILABILITY).setValue(a);
+    sheet.getRange(rowIndex, idx.ASSET_VALUE).setValue(assetValue);
+    SpreadsheetApp.flush();
+
+    // 組 after 快照
+    const afterRow = sheet.getRange(rowIndex, 1, 1, 21).getValues()[0];
+    const after = mapRowToIsmsAssetObject_(afterRow);
+
+    logIsmsOperation_('編輯', ismsAssetId, changed.join(','), before, after, '');
+
+    return { success: true, ismsAssetId, changedFields: changed };
+  } catch (e) {
+    console.error('updateIsmsAsset 錯誤:', e);
+    return { success: false, error: e.message };
+  } finally {
+    try { lock.releaseLock(); } catch (_) {}
+  }
+}
+
+/**
+ * 刪除資訊資產(僅管理員)
+ */
+function deleteIsmsAsset(ismsAssetId, reason) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+
+    const email = Session.getActiveUser().getEmail() || '';
+    if (!checkIsAdmin_(email)) {
+      return { success: false, error: '僅管理員可刪除' };
+    }
+
+    const targetId = (ismsAssetId || '').toString().trim();
+    if (!targetId) return { success: false, error: '資訊資產編號必填' };
+
+    const located = findIsmsAssetRow_(targetId);
+    if (!located) return { success: false, error: '找不到資產:' + targetId };
+
+    const before = mapRowToIsmsAssetObject_(located.rowData);
+    located.sheet.deleteRow(located.rowIndex);
+    SpreadsheetApp.flush();
+
+    logIsmsOperation_('刪除', targetId, '', before, null, reason || '');
+
+    return { success: true, ismsAssetId: targetId };
+  } catch (e) {
+    console.error('deleteIsmsAsset 錯誤:', e);
     return { success: false, error: e.message };
   } finally {
     try { lock.releaseLock(); } catch (_) {}
