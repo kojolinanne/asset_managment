@@ -427,9 +427,10 @@ function createIsmsAsset(form) {
     // 組 21 格陣列（A~U，對應 ISMS_ASSET_COLUMN_INDICES 1~21）
     const row = new Array(21).fill('');
     row[idx.ISMS_ASSET_ID - 1] = ismsAssetId;
-    row[idx.CATEGORY - 1] = categoryCode;   // B 欄寫「代號」
+    row[idx.CATEGORY - 1] = categoryCode;         // B 欄寫「代號」
     row[idx.NAME - 1] = name;
     row[idx.DESCRIPTION - 1] = description;
+    row[idx.RESPONSIBLE_UNIT - 1] = groupDisplay; // G 欄寫「組別中文名稱」
     row[idx.STATUS - 1] = statusDisplay;
     row[idx.CONFIDENTIALITY - 1] = c;
     row[idx.INTEGRITY - 1] = i;
