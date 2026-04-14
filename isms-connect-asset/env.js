@@ -14,6 +14,7 @@ const CONFIG = {
   ITEM_MASTER_SHEET_NAME: '物品總表',
   ISMS_ASSET_SHEET_NAME: '資訊資產清單',
   MAPPING_SHEET_NAME: '資產對照表',
+  DROPDOWN_SHEET_NAME: '下拉選單',
 
   // 管理員名單
   ADMIN_LIST_SHEET_NAME: '管理員名單'

@@ -322,6 +322,134 @@ function getGroupList() {
 // ==========================================
 
 /**
+ * 讀取「下拉選單」工作表，一次批次回傳類別 / 組別 / 狀態三組
+ * A 欄 = 定位 key、B 欄 = 顯示文字、C 欄 = 代號
+ */
+function getDropdownOptions() {
+  try {
+    const ss = SpreadsheetApp.openById(CONFIG.ISMS_SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(CONFIG.DROPDOWN_SHEET_NAME);
+    if (!sheet) {
+      return { success: false, error: '找不到「下拉選單」工作表' };
+    }
+
+    const categories = [];
+    const groups = [];
+    const statuses = [];
+
+    if (sheet.getLastRow() > 1) {
+      const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getValues();
+      for (let i = 0; i < data.length; i++) {
+        const key = data[i][0] ? String(data[i][0]).trim() : '';
+        const display = data[i][1] ? String(data[i][1]).trim() : '';
+        const code = data[i][2] ? String(data[i][2]).trim() : '';
+        if (!key || !display) continue;
+
+        if (key === '類別') categories.push({ display, code });
+        else if (key === '組別') groups.push({ display, code });
+        else if (key === '資產狀態' || key === '狀態') statuses.push({ display, code });
+      }
+    }
+
+    return { success: true, categories, groups, statuses };
+  } catch (e) {
+    console.error('getDropdownOptions 錯誤:', e);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * 建立新資訊資產：自動產號 + 計算資產價值
+ * @param {Object} form
+ *   - categoryDisplay / categoryCode
+ *   - groupDisplay / groupCode
+ *   - statusDisplay
+ *   - name, description
+ *   - confidentiality, integrity, availability (1~4)
+ * @returns {Object} { success, ismsAssetId, serial, assetValue }
+ */
+function createIsmsAsset(form) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000); // 最多等 10 秒，避免並發撞號
+
+    // 欄位驗證
+    if (!form || typeof form !== 'object') {
+      return { success: false, error: '表單資料不正確' };
+    }
+    const name = (form.name || '').toString().trim();
+    const categoryDisplay = (form.categoryDisplay || '').toString().trim();
+    const categoryCode = (form.categoryCode || '').toString().trim();
+    const groupDisplay = (form.groupDisplay || '').toString().trim();
+    const groupCode = (form.groupCode || '').toString().trim();
+    const statusDisplay = (form.statusDisplay || '').toString().trim();
+    const description = (form.description || '').toString();
+    const c = Number(form.confidentiality);
+    const i = Number(form.integrity);
+    const a = Number(form.availability);
+
+    if (!name) return { success: false, error: '資產名稱必填' };
+    if (!categoryDisplay || !categoryCode) return { success: false, error: '請選擇類別' };
+    if (!groupDisplay || !groupCode) return { success: false, error: '請選擇組別' };
+    const isValidCIA = (n) => Number.isInteger(n) && n >= 1 && n <= 4;
+    if (!isValidCIA(c) || !isValidCIA(i) || !isValidCIA(a)) {
+      return { success: false, error: 'CIA 三項必須是 1~4 的整數' };
+    }
+
+    // 讀取現有資訊資產
+    const ss = SpreadsheetApp.openById(CONFIG.ISMS_SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(CONFIG.ISMS_ASSET_SHEET_NAME);
+    if (!sheet) return { success: false, error: '找不到資訊資產工作表' };
+
+    const idx = ISMS_ASSET_COLUMN_INDICES;
+    let maxSerial = 0;
+    if (sheet.getLastRow() > 1) {
+      const data = sheet.getDataRange().getValues();
+      for (let r = 1; r < data.length; r++) {
+        const row = data[r];
+        if (String(row[idx.CATEGORY - 1] || '').trim() !== categoryDisplay) continue;
+        if (String(row[idx.GROUP - 1] || '').trim() !== groupDisplay) continue;
+        const serial = Number(row[idx.SERIAL_NO - 1]);
+        if (!isNaN(serial) && serial > maxSerial) maxSerial = serial;
+      }
+    }
+
+    const nextSerial = maxSerial + 1;
+    const serialPadded = String(nextSerial).padStart(3, '0');
+    const ismsAssetId = `${groupCode}-${categoryCode}-${serialPadded}`;
+    const assetValue = c + i + a;
+
+    // 組 21 格陣列（A~U，對應 ISMS_ASSET_COLUMN_INDICES 1~21）
+    const row = new Array(21).fill('');
+    row[idx.ISMS_ASSET_ID - 1] = ismsAssetId;
+    row[idx.CATEGORY - 1] = categoryDisplay;
+    row[idx.NAME - 1] = name;
+    row[idx.DESCRIPTION - 1] = description;
+    row[idx.STATUS - 1] = statusDisplay;
+    row[idx.CONFIDENTIALITY - 1] = c;
+    row[idx.INTEGRITY - 1] = i;
+    row[idx.AVAILABILITY - 1] = a;
+    row[idx.ASSET_VALUE - 1] = assetValue;
+    row[idx.GROUP - 1] = groupDisplay;
+    row[idx.SERIAL_NO - 1] = nextSerial;
+
+    sheet.appendRow(row);
+
+    return {
+      success: true,
+      ismsAssetId,
+      serial: nextSerial,
+      assetValue
+    };
+  } catch (e) {
+    console.error('createIsmsAsset 錯誤:', e);
+    return { success: false, error: e.message };
+  } finally {
+    try { lock.releaseLock(); } catch (_) {}
+  }
+}
+
+/**
  * 取得資訊資產清單
  * @param {Object} options - 篩選選項
  * @returns {Object} 資訊資產清單

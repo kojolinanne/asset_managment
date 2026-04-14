@@ -563,6 +563,46 @@
     }
     .btn-modal-confirm:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(37,99,235,0.3); }
     .btn-modal-confirm:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* 新增資產 Modal */
+    .modal-box.create-box { width: 580px; max-height: calc(100vh - 48px); overflow-y: auto; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; margin-bottom: 16px; }
+    .form-field { display: flex; flex-direction: column; }
+    .form-field.full { grid-column: 1 / -1; }
+    .form-label {
+      font-size: 12px; font-weight: 600; color: var(--ink-700); margin-bottom: 5px;
+    }
+    .form-label .req { color: #dc2626; margin-left: 2px; }
+    .form-input, .form-select, .form-textarea {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 13px;
+      color: var(--ink-900);
+      background: white;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      font-family: inherit;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      border-color: var(--accent-500);
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+    }
+    .form-textarea { resize: vertical; min-height: 64px; }
+    .form-hint { font-size: 11px; color: var(--ink-500); margin-top: 3px; }
+    .cia-group { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .preview-panel {
+      background: linear-gradient(135deg, #f0f9ff, #eff6ff);
+      border: 1px solid #bfdbfe;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+    }
+    .preview-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+    .preview-row + .preview-row { margin-top: 6px; }
+    .preview-label { color: var(--ink-700); font-weight: 500; }
+    .preview-value { font-weight: 700; color: #1d4ed8; font-family: ui-monospace, Menlo, monospace; }
+    .preview-value.muted { color: #94a3b8; font-weight: 500; }
   </style>
 </head>
 <body>
@@ -585,6 +625,9 @@
         <span id="lastUpdate" class="text-xs text-slate-500 mr-2"></span>
         <button id="btnRefresh" class="btn-secondary" title="重新整理">
           <i class="fa-solid fa-rotate"></i><span class="hidden sm:inline">重新整理</span>
+        </button>
+        <button id="btnCreate" class="btn-secondary" title="新增資訊資產">
+          <i class="fa-solid fa-plus"></i><span class="hidden sm:inline">新增</span>
         </button>
         <button id="btnExport" class="btn-primary" title="匯出目前顯示資料">
           <i class="fa-solid fa-file-export"></i><span class="hidden sm:inline">匯出</span>
@@ -750,12 +793,88 @@
     </div>
   </div>
 
+  <!-- Create Asset Modal -->
+  <div class="modal-overlay" id="createModal">
+    <div class="modal-box create-box">
+      <div class="modal-title"><i class="fa-solid fa-plus mr-2 text-blue-600"></i>新增資訊資產</div>
+      <div class="modal-sub">系統將自動依組別 + 類別產生編號,並自動計算資產價值。</div>
+
+      <div class="form-grid">
+        <div class="form-field">
+          <label class="form-label" for="createCategory">類別<span class="req">*</span></label>
+          <select id="createCategory" class="form-select"><option value="">請選擇</option></select>
+        </div>
+        <div class="form-field">
+          <label class="form-label" for="createGroup">組別<span class="req">*</span></label>
+          <select id="createGroup" class="form-select"><option value="">請選擇</option></select>
+        </div>
+        <div class="form-field full">
+          <label class="form-label" for="createName">資產名稱<span class="req">*</span></label>
+          <input id="createName" class="form-input" type="text" maxlength="100" placeholder="請輸入資訊資產名稱" />
+        </div>
+        <div class="form-field full">
+          <label class="form-label" for="createDesc">說明</label>
+          <textarea id="createDesc" class="form-textarea" rows="3" placeholder="(選填) 資產用途或備註"></textarea>
+        </div>
+        <div class="form-field full">
+          <label class="form-label" for="createStatus">使用狀態<span class="req">*</span></label>
+          <select id="createStatus" class="form-select"><option value="">請選擇</option></select>
+        </div>
+        <div class="form-field full">
+          <label class="form-label">CIA 評估(1 低 ~ 4 高)<span class="req">*</span></label>
+          <div class="cia-group">
+            <div>
+              <div class="form-hint" style="margin-bottom:4px;">機密性 O</div>
+              <select id="createC" class="form-select" style="width:100%;">
+                <option value="1">1</option><option value="2" selected>2</option>
+                <option value="3">3</option><option value="4">4</option>
+              </select>
+            </div>
+            <div>
+              <div class="form-hint" style="margin-bottom:4px;">完整性 P</div>
+              <select id="createI" class="form-select" style="width:100%;">
+                <option value="1">1</option><option value="2" selected>2</option>
+                <option value="3">3</option><option value="4">4</option>
+              </select>
+            </div>
+            <div>
+              <div class="form-hint" style="margin-bottom:4px;">可用性 Q</div>
+              <select id="createA" class="form-select" style="width:100%;">
+                <option value="1">1</option><option value="2" selected>2</option>
+                <option value="3">3</option><option value="4">4</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="preview-panel">
+        <div class="preview-row">
+          <span class="preview-label"><i class="fa-solid fa-hashtag mr-1 text-slate-400"></i>編號預覽</span>
+          <span class="preview-value muted" id="previewId">請先選擇組別與類別</span>
+        </div>
+        <div class="preview-row">
+          <span class="preview-label"><i class="fa-solid fa-gauge-high mr-1 text-slate-400"></i>資產價值 (O+P+Q)</span>
+          <span class="preview-value" id="previewValue">6</span>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-modal-cancel" id="btnCreateCancel">取消</button>
+        <button class="btn-modal-confirm" id="btnCreateConfirm">
+          <i class="fa-solid fa-check"></i>確認新增
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const state = {
       all: [],
       filtered: [],
       sortKey: null,   // 'ismsAssetId' | 'assetValue' | null
-      sortDir: 'asc'   // 'asc' | 'desc'
+      sortDir: 'asc',  // 'asc' | 'desc'
+      dropdowns: null  // { categories, groups, statuses } — 快取
     };
 
     const $ = (id) => document.getElementById(id);
@@ -1374,6 +1493,143 @@
         .getIsmsAssets({});
     }
 
+    // ============== 新增資訊資產 ==============
+    function fillSelect(selectEl, items, includeCode) {
+      while (selectEl.options.length > 1) selectEl.remove(1);
+      (items || []).forEach(it => {
+        const opt = document.createElement('option');
+        opt.value = it.display;
+        opt.textContent = it.display;
+        if (includeCode && it.code) opt.dataset.code = it.code;
+        selectEl.appendChild(opt);
+      });
+    }
+
+    function updateCreatePreview() {
+      const c = Number($('createC').value) || 0;
+      const i = Number($('createI').value) || 0;
+      const a = Number($('createA').value) || 0;
+      $('previewValue').textContent = String(c + i + a);
+
+      const gSel = $('createGroup');
+      const cSel = $('createCategory');
+      const gCode = gSel.selectedOptions[0] ? gSel.selectedOptions[0].dataset.code : '';
+      const cCode = cSel.selectedOptions[0] ? cSel.selectedOptions[0].dataset.code : '';
+      const prev = $('previewId');
+      if (gCode && cCode) {
+        prev.textContent = `${gCode}-${cCode}-???`;
+        prev.classList.remove('muted');
+      } else {
+        prev.textContent = '請先選擇組別與類別';
+        prev.classList.add('muted');
+      }
+    }
+
+    function populateCreateForm() {
+      const d = state.dropdowns || {};
+      fillSelect($('createCategory'), d.categories, true);
+      fillSelect($('createGroup'), d.groups, true);
+      fillSelect($('createStatus'), d.statuses, false);
+    }
+
+    function loadDropdowns(cb) {
+      if (state.dropdowns) { cb && cb(); return; }
+      google.script.run
+        .withSuccessHandler(res => {
+          if (res && res.success) {
+            state.dropdowns = {
+              categories: res.categories || [],
+              groups: res.groups || [],
+              statuses: res.statuses || []
+            };
+            cb && cb();
+          } else {
+            showToast('讀取下拉選項失敗:' + (res && res.error ? res.error : '未知錯誤'));
+          }
+        })
+        .withFailureHandler(err => {
+          showToast('讀取下拉選項失敗:' + (err && err.message ? err.message : err));
+        })
+        .getDropdownOptions();
+    }
+
+    function openCreateModal() {
+      loadDropdowns(() => {
+        populateCreateForm();
+        $('createName').value = '';
+        $('createDesc').value = '';
+        $('createCategory').value = '';
+        $('createGroup').value = '';
+        $('createStatus').value = '';
+        $('createC').value = '2';
+        $('createI').value = '2';
+        $('createA').value = '2';
+        updateCreatePreview();
+        $('createModal').classList.add('open');
+        setTimeout(() => $('createName').focus(), 100);
+      });
+    }
+
+    function closeCreateModal() {
+      $('createModal').classList.remove('open');
+    }
+
+    function submitCreate() {
+      const categorySel = $('createCategory');
+      const groupSel = $('createGroup');
+      const statusSel = $('createStatus');
+      const categoryDisplay = categorySel.value.trim();
+      const groupDisplay = groupSel.value.trim();
+      const statusDisplay = statusSel.value.trim();
+      const categoryCode = categorySel.selectedOptions[0] ? (categorySel.selectedOptions[0].dataset.code || '') : '';
+      const groupCode = groupSel.selectedOptions[0] ? (groupSel.selectedOptions[0].dataset.code || '') : '';
+      const name = $('createName').value.trim();
+      const description = $('createDesc').value.trim();
+      const c = Number($('createC').value);
+      const i = Number($('createI').value);
+      const a = Number($('createA').value);
+
+      if (!categoryDisplay) return showToast('請選擇類別');
+      if (!groupDisplay) return showToast('請選擇組別');
+      if (!categoryCode) return showToast('類別缺少代號,請檢查下拉選單工作表 C 欄');
+      if (!groupCode) return showToast('組別缺少代號,請檢查下拉選單工作表 C 欄');
+      if (!name) return showToast('請輸入資產名稱');
+      if (!statusDisplay) return showToast('請選擇使用狀態');
+      for (const [label, v] of [['機密性', c], ['完整性', i], ['可用性', a]]) {
+        if (!Number.isInteger(v) || v < 1 || v > 4) return showToast(`${label}必須介於 1~4`);
+      }
+
+      const btn = $('btnCreateConfirm');
+      const origHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>建立中...';
+
+      google.script.run
+        .withSuccessHandler(res => {
+          btn.disabled = false;
+          btn.innerHTML = origHtml;
+          if (res && res.success) {
+            closeCreateModal();
+            showToast(`已建立 ${res.ismsAssetId}`);
+            loadData();
+          } else {
+            showToast('建立失敗:' + (res && res.error ? res.error : '未知錯誤'));
+          }
+        })
+        .withFailureHandler(err => {
+          btn.disabled = false;
+          btn.innerHTML = origHtml;
+          showToast('建立失敗:' + (err && err.message ? err.message : err));
+        })
+        .createIsmsAsset({
+          categoryDisplay, categoryCode,
+          groupDisplay, groupCode,
+          name, description,
+          statusDisplay,
+          confidentiality: c, integrity: i, availability: a
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
       $('searchInput').addEventListener('input', applyFilters);
       $('filterCategory').addEventListener('change', applyFilters);
@@ -1401,6 +1657,16 @@
       $('thId').addEventListener('click', () => toggleSort('ismsAssetId'));
       $('thValue').addEventListener('click', () => toggleSort('assetValue'));
       $('dupToggle').addEventListener('click', () => $('dupPanel').classList.toggle('collapsed'));
+
+      // 新增資產
+      $('btnCreate').addEventListener('click', openCreateModal);
+      $('btnCreateCancel').addEventListener('click', closeCreateModal);
+      $('btnCreateConfirm').addEventListener('click', submitCreate);
+      $('createModal').addEventListener('click', e => { if (e.target === $('createModal')) closeCreateModal(); });
+      ['createC', 'createI', 'createA', 'createGroup', 'createCategory'].forEach(id => {
+        $(id).addEventListener('change', updateCreatePreview);
+      });
+
       loadData();
     });
   </script>
