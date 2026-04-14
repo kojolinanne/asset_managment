@@ -1532,42 +1532,69 @@
       fillSelect($('createStatus'), d.statuses, false);
     }
 
-    function loadDropdowns(cb) {
-      if (state.dropdowns) { cb && cb(); return; }
+    function preloadDropdowns() {
+      if (state.dropdowns || state._dropdownsLoading) return;
+      state._dropdownsLoading = true;
       google.script.run
         .withSuccessHandler(res => {
+          state._dropdownsLoading = false;
           if (res && res.success) {
             state.dropdowns = {
               categories: res.categories || [],
               groups: res.groups || [],
               statuses: res.statuses || []
             };
-            cb && cb();
+            // 若 modal 已開啟且在等待中,立即補填選項
+            if ($('createModal').classList.contains('open')) {
+              populateCreateForm();
+              restoreSelections();
+              updateCreatePreview();
+            }
           } else {
-            showToast('讀取下拉選項失敗:' + (res && res.error ? res.error : '未知錯誤'));
+            console.warn('讀取下拉選項失敗:', res && res.error);
           }
         })
         .withFailureHandler(err => {
-          showToast('讀取下拉選項失敗:' + (err && err.message ? err.message : err));
+          state._dropdownsLoading = false;
+          console.warn('讀取下拉選項失敗:', err && err.message ? err.message : err);
         })
         .getDropdownOptions();
     }
 
+    function restoreSelections() {
+      // 若使用者已選過再補填的情境,目前開啟時會重置,故 no-op
+    }
+
     function openCreateModal() {
-      loadDropdowns(() => {
+      // 立即開啟 modal —— 不等後端
+      $('createName').value = '';
+      $('createDesc').value = '';
+      $('createC').value = '2';
+      $('createI').value = '2';
+      $('createA').value = '2';
+
+      if (state.dropdowns) {
         populateCreateForm();
-        $('createName').value = '';
-        $('createDesc').value = '';
         $('createCategory').value = '';
         $('createGroup').value = '';
         $('createStatus').value = '';
-        $('createC').value = '2';
-        $('createI').value = '2';
-        $('createA').value = '2';
-        updateCreatePreview();
-        $('createModal').classList.add('open');
-        setTimeout(() => $('createName').focus(), 100);
-      });
+      } else {
+        // 仍在靜默載入中:放個臨時提示選項,並重試載入
+        [['createCategory', '載入中...'], ['createGroup', '載入中...'], ['createStatus', '載入中...']].forEach(([id, label]) => {
+          const sel = $(id);
+          while (sel.options.length > 1) sel.remove(1);
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = label;
+          opt.disabled = true;
+          sel.appendChild(opt);
+        });
+        preloadDropdowns();
+      }
+
+      updateCreatePreview();
+      $('createModal').classList.add('open');
+      setTimeout(() => $('createName').focus(), 100);
     }
 
     function closeCreateModal() {
@@ -1668,6 +1695,7 @@
       });
 
       loadData();
+      preloadDropdowns(); // 靜默預載,讓按「新增」時能立即開啟
     });
   </script>
 </body>
