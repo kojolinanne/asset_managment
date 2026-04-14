@@ -345,9 +345,9 @@ function getDropdownOptions() {
         const code = data[i][2] ? String(data[i][2]).trim() : '';
         if (!key || !display) continue;
 
-        if (key === '類別') categories.push({ display, code });
+        if (key === '資訊資產類別' || key === '類別') categories.push({ display, code });
         else if (key === '組別') groups.push({ display, code });
-        else if (key === '資產狀態' || key === '狀態') statuses.push({ display, code });
+        else if (key === '資訊資產狀態' || key === '資產狀態' || key === '狀態') statuses.push({ display, code });
       }
     }
 
