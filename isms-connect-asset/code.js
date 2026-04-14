@@ -402,13 +402,18 @@ function createIsmsAsset(form) {
     if (!sheet) return { success: false, error: '找不到資訊資產工作表' };
 
     const idx = ISMS_ASSET_COLUMN_INDICES;
+    // 類別(B)、組別(S) 寫入「代號」(下拉選單 C 欄)，因此比對也用代號
+    // 同時為相容舊資料，若既有列是中文(顯示名)也視為同組
     let maxSerial = 0;
     if (sheet.getLastRow() > 1) {
       const data = sheet.getDataRange().getValues();
       for (let r = 1; r < data.length; r++) {
         const row = data[r];
-        if (String(row[idx.CATEGORY - 1] || '').trim() !== categoryDisplay) continue;
-        if (String(row[idx.GROUP - 1] || '').trim() !== groupDisplay) continue;
+        const rowCategory = String(row[idx.CATEGORY - 1] || '').trim();
+        const rowGroup = String(row[idx.GROUP - 1] || '').trim();
+        const categoryMatch = rowCategory === categoryCode || rowCategory === categoryDisplay;
+        const groupMatch = rowGroup === groupCode || rowGroup === groupDisplay;
+        if (!categoryMatch || !groupMatch) continue;
         const serial = Number(row[idx.SERIAL_NO - 1]);
         if (!isNaN(serial) && serial > maxSerial) maxSerial = serial;
       }
@@ -422,7 +427,7 @@ function createIsmsAsset(form) {
     // 組 21 格陣列（A~U，對應 ISMS_ASSET_COLUMN_INDICES 1~21）
     const row = new Array(21).fill('');
     row[idx.ISMS_ASSET_ID - 1] = ismsAssetId;
-    row[idx.CATEGORY - 1] = categoryDisplay;
+    row[idx.CATEGORY - 1] = categoryCode;   // B 欄寫「代號」
     row[idx.NAME - 1] = name;
     row[idx.DESCRIPTION - 1] = description;
     row[idx.STATUS - 1] = statusDisplay;
@@ -430,16 +435,18 @@ function createIsmsAsset(form) {
     row[idx.INTEGRITY - 1] = i;
     row[idx.AVAILABILITY - 1] = a;
     row[idx.ASSET_VALUE - 1] = assetValue;
-    row[idx.GROUP - 1] = groupDisplay;
+    row[idx.GROUP - 1] = groupCode;         // S 欄寫「代號」
     row[idx.SERIAL_NO - 1] = nextSerial;
 
     sheet.appendRow(row);
+    SpreadsheetApp.flush(); // 強制同步寫入,避免後續讀取拿到 stale 資料
 
     return {
       success: true,
       ismsAssetId,
       serial: nextSerial,
-      assetValue
+      assetValue,
+      rowIndex: sheet.getLastRow() // 回傳寫入的列號,方便前端驗證
     };
   } catch (e) {
     console.error('createIsmsAsset 錯誤:', e);
