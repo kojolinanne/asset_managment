@@ -731,7 +731,7 @@
           <span class="fmt-check"><i class="fa-solid fa-check"></i></span>
           <span class="fmt-icon" style="color:#dc2626"><i class="fa-solid fa-file-pdf"></i></span>
           <div class="fmt-name">PDF</div>
-          <div class="fmt-desc">列印用格式<br>橫向 A3 版面</div>
+          <div class="fmt-desc">列印預覽視窗<br>另存 PDF 完整中文</div>
         </div>
       </div>
 
@@ -1114,50 +1114,108 @@
       XLSX.writeFile(wb, filename + '.xlsx');
     }
 
-    // ── PDF (jsPDF + autoTable) ───────────────────
+    // ── PDF：瀏覽器列印視窗（支援中文，選「另存 PDF」）────
     function doExportPdf(filename) {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
-
-      // 內嵌字型需要完整 CJK 字型，改以替代方案：
-      // 欄位名稱用英文，內容若有中文以原文輸出（jsPDF 預設字型不含 CJK，
-      // 需加 NotoSansCJK，但體積過大；採用外部 google font 替代 workaround）
-      const colHeaders = [
-        'ID','類別','名稱','說明','數量','地點','權責單位','機密性','完整性','可用性','資產價值','使用狀態'
-      ];
       const rows = getExportRows();
+      const ts = new Date().toLocaleString('zh-TW', { hour12: false });
 
-      doc.setFontSize(14);
-      doc.text('資訊資產清單', 14, 16);
-      doc.setFontSize(9);
-      doc.setTextColor(100);
-      doc.text(`匯出時間：${new Date().toLocaleString('zh-TW')}　共 ${rows.length} 筆`, 14, 22);
+      // 建立 CIA / 狀態色對照（純文字版）
+      function ciaCls(v) {
+        const s = (v || '').toString().trim().toLowerCase();
+        if (/^(h|high|高)|^3$/.test(s)) return 'cia-high';
+        if (/^(m|mid|medium|中)|^2$/.test(s)) return 'cia-mid';
+        if (/^(l|low|低)|^1$/.test(s)) return 'cia-low';
+        return '';
+      }
+      function valCls(v) {
+        const n = parseFloat(v);
+        return (!isNaN(n) && n >= 7) ? 'val-high' : '';
+      }
+      function statusCls(v) {
+        if (v === '使用中') return 'st-active';
+        if (v === '停用中') return 'st-inactive';
+        if (v === '已轉移至VM') return 'st-vm';
+        return '';
+      }
 
-      doc.autoTable({
-        head: [colHeaders],
-        body: rows,
-        startY: 26,
-        styles: { font: 'helvetica', fontSize: 8, cellPadding: 2.5, overflow: 'linebreak' },
-        headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold' },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-        columnStyles: {
-          0:  { cellWidth: 22 },
-          1:  { cellWidth: 18 },
-          2:  { cellWidth: 30 },
-          3:  { cellWidth: 52 },
-          4:  { cellWidth: 10 },
-          5:  { cellWidth: 22 },
-          6:  { cellWidth: 22 },
-          7:  { cellWidth: 12 },
-          8:  { cellWidth: 12 },
-          9:  { cellWidth: 12 },
-          10: { cellWidth: 12 },
-          11: { cellWidth: 18 }
-        },
-        margin: { left: 14, right: 14 }
-      });
+      // 建立列 HTML
+      let tbody = '';
+      for (const r of rows) {
+        const isHigh = (!isNaN(parseFloat(r[10])) && parseFloat(r[10]) >= 7);
+        tbody += `<tr${isHigh ? ' class="row-high"' : ''}>
+          <td class="mono">${esc(r[0])}</td>
+          <td><span class="tag">${esc(r[1])}</span></td>
+          <td class="bold">${esc(r[2])}</td>
+          <td class="desc">${esc(r[3])}</td>
+          <td class="num">${esc(r[4])}</td>
+          <td>${esc(r[5])}</td>
+          <td>${esc(r[6])}</td>
+          <td><span class="pill ${ciaCls(r[7])}">${esc(r[7])}</span></td>
+          <td><span class="pill ${ciaCls(r[8])}">${esc(r[8])}</span></td>
+          <td><span class="pill ${ciaCls(r[9])}">${esc(r[9])}</span></td>
+          <td><span class="val ${valCls(r[10])}">${esc(r[10])}</span></td>
+          <td><span class="status ${statusCls(r[11])}">${esc(r[11])}</span></td>
+        </tr>`;
+      }
 
-      doc.save(filename + '.pdf');
+      const html = `<!DOCTYPE html><html lang="zh-TW"><head>
+<meta charset="UTF-8">
+<title>${filename}</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  @page { size: A3 landscape; margin: 12mm 10mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Noto Sans TC", sans-serif; font-size: 9pt; color: #0f172a; margin: 0; }
+  h1 { font-size: 14pt; font-weight: 700; margin: 0 0 2mm; }
+  .meta { font-size: 8pt; color: #64748b; margin-bottom: 5mm; }
+  table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
+  thead th {
+    background: #2563eb; color: #fff; font-weight: 600;
+    padding: 5px 6px; text-align: left; white-space: nowrap; font-size: 8pt;
+  }
+  tbody td { padding: 5px 6px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+  tbody tr:nth-child(even) td { background: #f8fafc; }
+  tr.row-high td { background: #fff8f5 !important; border-left: 3px solid #ef4444; }
+  .mono { font-family: monospace; font-size: 8pt; color: #1d4ed8; font-weight: 700; }
+  .bold { font-weight: 600; }
+  .num  { text-align: right; }
+  .desc { max-width: 80mm; word-break: break-all; line-height: 1.4; }
+  .tag  { background: #e0f2fe; color: #075985; border-radius: 4px; padding: 1px 6px; font-size: 7.5pt; }
+  .pill { border-radius: 99px; padding: 1px 7px; font-size: 7.5pt; font-weight: 600; }
+  .cia-high { background: #fee2e2; color: #b91c1c; }
+  .cia-mid  { background: #fef3c7; color: #b45309; }
+  .cia-low  { background: #dcfce7; color: #15803d; }
+  .val      { font-weight: 700; font-size: 9pt; }
+  .val-high { color: #dc2626; }
+  .status   { border-radius: 4px; padding: 1px 6px; font-size: 7.5pt; font-weight: 500; }
+  .st-active   { background: #dcfce7; color: #15803d; }
+  .st-inactive { background: #f1f5f9; color: #64748b; }
+  .st-vm       { background: #ede9fe; color: #5b21b6; }
+  @media print { button { display: none !important; } }
+</style>
+</head><body>
+<h1>資訊資產清單</h1>
+<div class="meta">匯出時間：${ts}　共 ${rows.length} 筆　（使用「列印 → 另存為 PDF」儲存）</div>
+<table>
+  <thead><tr>
+    <th>資訊資產編號</th><th>類別</th><th>名稱</th><th>說明</th>
+    <th>數量</th><th>地點</th><th>權責單位</th>
+    <th>機密性</th><th>完整性</th><th>可用性</th><th>資產價值</th><th>使用狀態</th>
+  </tr></thead>
+  <tbody>${tbody}</tbody>
+</table>
+<script>window.onload=function(){ window.print(); }<\/script>
+</body></html>`;
+
+      const w = window.open('', '_blank', 'width=1200,height=800');
+      if (!w) { showToast('請允許彈出視窗後再試'); return; }
+      w.document.write(html);
+      w.document.close();
+    }
+
+    function esc(v) {
+      return String(v == null ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
     function triggerDownload(blob, filename) {
