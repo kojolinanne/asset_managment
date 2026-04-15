@@ -735,6 +735,13 @@ function getAllowedEmails() {
 }
 
 /**
+ * 清除權限快取（改完「保管人/信箱」或「管理員名單」工作表後可手動執行）
+ */
+function clearPermissionCache() {
+  CacheService.getScriptCache().remove('system_access_allowlist');
+}
+
+/**
  * 建立存取拒絕頁面
  * @param {string} userEmail 被拒絕存取的使用者 Email
  * @returns {HtmlOutput} 存取拒絕頁面
