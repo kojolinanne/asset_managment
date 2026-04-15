@@ -147,7 +147,9 @@ const ISMS_ASSET_COLUMN_INDICES = {
   AVAILABILITY: 17,      // Q欄: 可用性
   ASSET_VALUE: 18,       // R欄: 資產價值
   GROUP: 19,             // S欄: 組別代號
-  SERIAL_NO: 20          // T欄: 流水號
+  SERIAL_NO: 20,         // T欄: 流水號
+  INVENTORY_COUNT: 21,   // U欄: 已盤點數量
+  BUSINESS_PROCESS: 22   // V欄: 業務流程
 };
 
 // ISMS 資產對照表欄位索引
@@ -8397,7 +8399,7 @@ function getIsmsAssetList() {
 
 /**
  * 讀取 ISMS 試算表「下拉選單」工作表，回傳類別 / 組別 / 狀態三組
- * A 欄=key、B 欄=顯示文字、C 欄=代號
+ * B 欄=key、C 欄=中文顯示文字、D 欄=代號
  */
 function getIsmsDropdownOptions() {
   try {
@@ -8411,22 +8413,24 @@ function getIsmsDropdownOptions() {
     const categories = [];
     const groups = [];
     const statuses = [];
+    const businessProcesses = [];
 
     if (sheet.getLastRow() > 1) {
-      const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getValues();
+      const data = sheet.getRange(2, 2, sheet.getLastRow() - 1, 3).getValues();
       for (let i = 0; i < data.length; i++) {
-        const key = data[i][0] ? String(data[i][0]).trim() : '';
-        const display = data[i][1] ? String(data[i][1]).trim() : '';
-        const code = data[i][2] ? String(data[i][2]).trim() : '';
+        const key = data[i][0] ? String(data[i][0]).trim() : '';     // B 欄
+        const display = data[i][1] ? String(data[i][1]).trim() : ''; // C 欄
+        const code = data[i][2] ? String(data[i][2]).trim() : '';    // D 欄
         if (!key || !display) continue;
 
         if (key === '資訊資產類別' || key === '類別') categories.push({ display, code });
         else if (key === '組別') groups.push({ display, code });
         else if (key === '資訊資產狀態' || key === '資產狀態' || key === '狀態') statuses.push({ display, code });
+        else if (key === '業務流程') businessProcesses.push({ display });
       }
     }
 
-    return { success: true, categories, groups, statuses };
+    return { success: true, categories, groups, statuses, businessProcesses };
   } catch (e) {
     Logger.log('getIsmsDropdownOptions 錯誤: ' + e.message);
     return { success: false, error: e.message };
@@ -8462,6 +8466,7 @@ function createIsmsAsset(form) {
     const groupDisplay = (form.groupDisplay || '').toString().trim();
     const groupCode = (form.groupCode || '').toString().trim();
     const statusDisplay = (form.statusDisplay || '').toString().trim();
+    const businessProcess = (form.businessProcess || '').toString().trim();
     const description = (form.description || '').toString();
     const c = Number(form.confidentiality);
     const i = Number(form.integrity);
@@ -8520,7 +8525,7 @@ function createIsmsAsset(form) {
     }
     const assetValue = c + i + a;
 
-    const row = new Array(21).fill('');
+    const row = new Array(22).fill('');
     row[idx.ISMS_ASSET_ID - 1] = ismsAssetId;
     row[idx.CATEGORY - 1] = categoryCode;
     row[idx.NAME - 1] = name;
@@ -8533,6 +8538,7 @@ function createIsmsAsset(form) {
     row[idx.ASSET_VALUE - 1] = assetValue;
     row[idx.GROUP - 1] = groupCode;
     row[idx.SERIAL_NO - 1] = nextSerial;
+    row[idx.BUSINESS_PROCESS - 1] = businessProcess; // V 欄:業務流程
 
     sheet.appendRow(row);
     SpreadsheetApp.flush();
