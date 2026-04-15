@@ -416,11 +416,11 @@ function getDropdownOptions() {
     const businessProcesses = [];
 
     if (sheet.getLastRow() > 1) {
-      const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getValues();
+      const data = sheet.getRange(2, 2, sheet.getLastRow() - 1, 3).getValues();
       for (let i = 0; i < data.length; i++) {
-        const key = data[i][0] ? String(data[i][0]).trim() : '';
-        const display = data[i][1] ? String(data[i][1]).trim() : '';
-        const code = data[i][2] ? String(data[i][2]).trim() : '';
+        const key = data[i][0] ? String(data[i][0]).trim() : '';     // B 欄
+        const display = data[i][1] ? String(data[i][1]).trim() : ''; // C 欄
+        const code = data[i][2] ? String(data[i][2]).trim() : '';    // D 欄
         if (!key || !display) continue;
 
         if (key === '資訊資產類別' || key === '類別') categories.push({ display, code });
