@@ -255,6 +255,7 @@ function mapRowToIsmsAssetObject_(row) {
     description: row[indices.DESCRIPTION - 1] ? row[indices.DESCRIPTION - 1].toString() : '',
     quantity: (row[indices.INVENTORY_COUNT - 1] ? row[indices.INVENTORY_COUNT - 1].toString() : '') ||
               (row[indices.QUANTITY - 1] ? row[indices.QUANTITY - 1].toString() : ''),
+    quantityOriginal: row[indices.QUANTITY - 1] ? row[indices.QUANTITY - 1].toString() : '',
     location: row[indices.LOCATION - 1] ? row[indices.LOCATION - 1].toString() : '',
     responsibleUnit: row[indices.RESPONSIBLE_UNIT - 1] ? row[indices.RESPONSIBLE_UNIT - 1].toString() : '',
     mainCategory: row[indices.MAIN_CATEGORY - 1] ? row[indices.MAIN_CATEGORY - 1].toString() : '',

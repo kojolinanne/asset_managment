@@ -676,11 +676,16 @@
     </header>
 
     <!-- Stats -->
-    <section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <section class="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
       <div class="stat-card" style="--accent-color:#2563eb">
-        <div class="label">資產總數</div>
+        <div class="label">資訊資產邏輯總數</div>
         <div class="value" id="statTotal">—</div>
         <i class="fa-solid fa-boxes-stacked icon"></i>
+      </div>
+      <div class="stat-card" style="--accent-color:#2563eb">
+        <div class="label">資訊資產實體總數</div>
+        <div class="value" id="statPhysicalTotal">—</div>
+        <i class="fa-solid fa-cubes icon"></i>
       </div>
       <div class="stat-card" style="--accent-color:#0891b2">
         <div class="label">資訊資產類別</div>
@@ -1261,6 +1266,12 @@
 
     function renderStats() {
       $('statTotal').textContent = state.all.length.toLocaleString();
+      const physicalTotal = state.all.reduce((sum, a) => {
+        const raw = (a.quantityOriginal != null ? a.quantityOriginal : a.quantity);
+        const n = parseInt(String(raw).replace(/[^0-9-]/g, ''), 10);
+        return sum + (Number.isFinite(n) ? n : 0);
+      }, 0);
+      $('statPhysicalTotal').textContent = physicalTotal.toLocaleString();
       const categories = new Set(state.all.map(a => (a.category || '').trim()).filter(Boolean));
       $('statCategory').textContent = categories.size;
       const units = new Set(state.all.map(a => (a.responsibleUnit || '').trim()).filter(Boolean));
