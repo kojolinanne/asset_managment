@@ -269,7 +269,8 @@ function mapRowToIsmsAssetObject_(row) {
     assetValue: row[indices.ASSET_VALUE - 1] ? row[indices.ASSET_VALUE - 1].toString() : '',
     group: row[indices.GROUP - 1] ? row[indices.GROUP - 1].toString() : '',
     serialNo: row[indices.SERIAL_NO - 1] ? row[indices.SERIAL_NO - 1].toString() : '',
-    inventoryCount: row[indices.INVENTORY_COUNT - 1] ? row[indices.INVENTORY_COUNT - 1].toString() : ''
+    inventoryCount: row[indices.INVENTORY_COUNT - 1] ? row[indices.INVENTORY_COUNT - 1].toString() : '',
+    businessProcess: row[indices.BUSINESS_PROCESS - 1] ? row[indices.BUSINESS_PROCESS - 1].toString() : ''
   };
 }
 
@@ -412,6 +413,7 @@ function getDropdownOptions() {
     const categories = [];
     const groups = [];
     const statuses = [];
+    const businessProcesses = [];
 
     if (sheet.getLastRow() > 1) {
       const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getValues();
@@ -424,10 +426,11 @@ function getDropdownOptions() {
         if (key === '資訊資產類別' || key === '類別') categories.push({ display, code });
         else if (key === '組別') groups.push({ display, code });
         else if (key === '資訊資產狀態' || key === '資產狀態' || key === '狀態') statuses.push({ display, code });
+        else if (key === '業務流程') businessProcesses.push({ display });
       }
     }
 
-    return { success: true, categories, groups, statuses };
+    return { success: true, categories, groups, statuses, businessProcesses };
   } catch (e) {
     console.error('getDropdownOptions 錯誤:', e);
     return { success: false, error: e.message };
@@ -459,6 +462,7 @@ function createIsmsAsset(form) {
     const groupDisplay = (form.groupDisplay || '').toString().trim();
     const groupCode = (form.groupCode || '').toString().trim();
     const statusDisplay = (form.statusDisplay || '').toString().trim();
+    const businessProcess = (form.businessProcess || '').toString().trim();
     const description = (form.description || '').toString();
     const c = Number(form.confidentiality);
     const i = Number(form.integrity);
@@ -524,8 +528,8 @@ function createIsmsAsset(form) {
     }
     const assetValue = c + i + a;
 
-    // 組 21 格陣列（A~U，對應 ISMS_ASSET_COLUMN_INDICES 1~21）
-    const row = new Array(21).fill('');
+    // 組 22 格陣列（A~V，對應 ISMS_ASSET_COLUMN_INDICES 1~22）
+    const row = new Array(22).fill('');
     row[idx.ISMS_ASSET_ID - 1] = ismsAssetId;
     row[idx.CATEGORY - 1] = categoryCode;         // B 欄寫「代號」
     row[idx.NAME - 1] = name;
@@ -538,13 +542,14 @@ function createIsmsAsset(form) {
     row[idx.ASSET_VALUE - 1] = assetValue;
     row[idx.GROUP - 1] = groupCode;         // S 欄寫「代號」
     row[idx.SERIAL_NO - 1] = nextSerial;
+    row[idx.BUSINESS_PROCESS - 1] = businessProcess; // V 欄:業務流程
 
     sheet.appendRow(row);
     SpreadsheetApp.flush(); // 強制同步寫入,避免後續讀取拿到 stale 資料
 
     // 記錄操作日誌
     const newRowIndex = sheet.getLastRow();
-    const snapshot = mapRowToIsmsAssetObject_(sheet.getRange(newRowIndex, 1, 1, 21).getValues()[0]);
+    const snapshot = mapRowToIsmsAssetObject_(sheet.getRange(newRowIndex, 1, 1, 22).getValues()[0]);
     logIsmsOperation_('新增', ismsAssetId, '', null, snapshot, '');
 
     return {
@@ -694,7 +699,7 @@ function updateIsmsAsset(form) {
     SpreadsheetApp.flush();
 
     // 組 after 快照
-    const afterRow = sheet.getRange(rowIndex, 1, 1, 21).getValues()[0];
+    const afterRow = sheet.getRange(rowIndex, 1, 1, 22).getValues()[0];
     const after = mapRowToIsmsAssetObject_(afterRow);
 
     logIsmsOperation_('編輯', ismsAssetId, changed.join(','), before, after, '');

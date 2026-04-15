@@ -95,7 +95,8 @@ const ISMS_ASSET_COLUMN_INDICES = {
   ASSET_VALUE: 18,       // R欄: 資產價值
   GROUP: 19,             // S欄: 組別
   SERIAL_NO: 20,         // T欄: 序號
-  INVENTORY_COUNT: 21    // U欄: 已盤點數量
+  INVENTORY_COUNT: 21,   // U欄: 已盤點數量
+  BUSINESS_PROCESS: 22   // V欄: 業務流程
 };
 
 // 資產對照表欄位索引

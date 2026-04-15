@@ -780,6 +780,12 @@
                 </span>
               </th>
               <th>使用狀態<span class="sub">Status</span></th>
+              <th>
+                <span class="th-inner" id="thProcess" data-sort="businessProcess">
+                  業務流程<span class="sub">Business Process</span>
+                  <span class="sort-btn"><i class="fa-solid fa-sort-up"></i><i class="fa-solid fa-sort-down"></i></span>
+                </span>
+              </th>
               <th class="col-actions-th">操作</th>
             </tr>
           </thead>
@@ -860,6 +866,10 @@
         <div class="form-field full">
           <label class="form-label" for="createStatus">使用狀態<span class="req">*</span></label>
           <select id="createStatus" class="form-select"><option value="">請選擇</option></select>
+        </div>
+        <div class="form-field full">
+          <label class="form-label" for="createBusinessProcess">業務流程</label>
+          <select id="createBusinessProcess" class="form-select"><option value="">請選擇業務流程</option></select>
         </div>
         <div class="form-field full">
           <label class="form-label">CIA 評估(1 低 ~ 4 高)<span class="req">*</span></label>
@@ -1017,7 +1027,7 @@
     const state = {
       all: [],
       filtered: [],
-      sortKey: null,   // 'ismsAssetId' | 'assetValue' | null
+      sortKey: null,   // 'ismsAssetId' | 'assetValue' | 'businessProcess' | null
       sortDir: 'asc',  // 'asc' | 'desc'
       dropdowns: null, // { categories, groups, statuses } — 快取
       currentUser: null, // { email, isAdmin }
@@ -1176,7 +1186,7 @@
       if (!state.filtered.length) {
         const tr = document.createElement('tr');
         const td = document.createElement('td');
-        td.colSpan = 13;
+        td.colSpan = 14;
         td.innerHTML = '';
         const wrap = document.createElement('div');
         wrap.className = 'empty-state';
@@ -1222,6 +1232,8 @@
         const tdV = document.createElement('td'); tdV.appendChild(valueBadge(a.assetValue)); tr.appendChild(tdV);
 
         const tdSt = document.createElement('td'); tdSt.appendChild(statusBadge(a.status)); tr.appendChild(tdSt);
+
+        tr.appendChild(makeCell(a.businessProcess));
 
         // 操作欄
         const tdAct = document.createElement('td');
@@ -1326,6 +1338,14 @@
             if (nb === null) return -1;
             return (na - nb) * dir;
           }
+          if (state.sortKey === 'businessProcess') {
+            const pa = (a.businessProcess || '').toString();
+            const pb = (b.businessProcess || '').toString();
+            if (!pa && !pb) return 0;
+            if (!pa) return 1;
+            if (!pb) return -1;
+            return pa.localeCompare(pb, 'zh-TW', { numeric: true }) * dir;
+          }
           // ismsAssetId：字串自然排序
           const sa = (a.ismsAssetId || '').toString();
           const sb = (b.ismsAssetId || '').toString();
@@ -1336,7 +1356,7 @@
     }
 
     function updateSortUI() {
-      ['thId', 'thValue'].forEach(id => {
+      ['thId', 'thValue', 'thProcess'].forEach(id => {
         const el = $(id);
         if (!el) return;
         el.classList.remove('asc', 'desc');
@@ -1368,11 +1388,11 @@
     }
 
     // ── 匯出共用資料 ──────────────────────────────
-    const EXPORT_HEADERS = ['資訊資產編號','類別','名稱','說明','數量','地點','權責單位','機密性','完整性','可用性','資產價值','使用狀態'];
+    const EXPORT_HEADERS = ['資訊資產編號','類別','名稱','說明','數量','地點','權責單位','機密性','完整性','可用性','資產價值','使用狀態','業務流程'];
     function getExportRows() {
       return state.filtered.map(a => [
         a.ismsAssetId, a.category, a.name, a.description, a.quantity,
-        a.location, a.responsibleUnit, a.confidentiality, a.integrity, a.availability, a.assetValue, a.status
+        a.location, a.responsibleUnit, a.confidentiality, a.integrity, a.availability, a.assetValue, a.status, a.businessProcess
       ].map(v => v == null ? '' : String(v)));
     }
 
@@ -1392,7 +1412,7 @@
       const ws = XLSX.utils.aoa_to_sheet(wsData);
 
       // 欄寬
-      ws['!cols'] = [10,12,22,40,6,14,14,8,8,8,8,12].map(w => ({ wch: w }));
+      ws['!cols'] = [10,12,22,40,6,14,14,8,8,8,8,12,16].map(w => ({ wch: w }));
 
       // 標題列樣式（SheetJS Community 版不含樣式，留空）
       XLSX.utils.book_append_sheet(wb, ws, '資訊資產清單');
@@ -1696,6 +1716,7 @@
       fillSelect($('createCategory'), d.categories, true);
       fillSelect($('createGroup'), d.groups, true);
       fillSelect($('createStatus'), d.statuses, false);
+      fillSelect($('createBusinessProcess'), d.businessProcesses, false);
     }
 
     function preloadDropdowns() {
@@ -1708,7 +1729,8 @@
             state.dropdowns = {
               categories: res.categories || [],
               groups: res.groups || [],
-              statuses: res.statuses || []
+              statuses: res.statuses || [],
+              businessProcesses: res.businessProcesses || []
             };
             // 若 modal 已開啟且在等待中,立即補填選項
             if ($('createModal').classList.contains('open')) {
@@ -1744,9 +1766,10 @@
         $('createCategory').value = '';
         $('createGroup').value = '';
         $('createStatus').value = '';
+        $('createBusinessProcess').value = '';
       } else {
         // 仍在靜默載入中:放個臨時提示選項,並重試載入
-        [['createCategory', '載入中...'], ['createGroup', '載入中...'], ['createStatus', '載入中...']].forEach(([id, label]) => {
+        [['createCategory', '載入中...'], ['createGroup', '載入中...'], ['createStatus', '載入中...'], ['createBusinessProcess', '載入中...']].forEach(([id, label]) => {
           const sel = $(id);
           while (sel.options.length > 1) sel.remove(1);
           const opt = document.createElement('option');
@@ -1771,9 +1794,11 @@
       const categorySel = $('createCategory');
       const groupSel = $('createGroup');
       const statusSel = $('createStatus');
+      const businessProcessSel = $('createBusinessProcess');
       const categoryDisplay = categorySel.value.trim();
       const groupDisplay = groupSel.value.trim();
       const statusDisplay = statusSel.value.trim();
+      const businessProcess = businessProcessSel.value.trim();
       const categoryCode = categorySel.selectedOptions[0] ? (categorySel.selectedOptions[0].dataset.code || '') : '';
       const groupCode = groupSel.selectedOptions[0] ? (groupSel.selectedOptions[0].dataset.code || '') : '';
       const name = $('createName').value.trim();
@@ -1819,6 +1844,7 @@
           groupDisplay, groupCode,
           name, description,
           statusDisplay,
+          businessProcess,
           confidentiality: c, integrity: i, availability: a
         });
     }
@@ -1995,6 +2021,7 @@
       $('exportModal').addEventListener('click', e => { if (e.target === $('exportModal')) closeExportModal(); });
       $('thId').addEventListener('click', () => toggleSort('ismsAssetId'));
       $('thValue').addEventListener('click', () => toggleSort('assetValue'));
+      $('thProcess').addEventListener('click', () => toggleSort('businessProcess'));
       $('dupToggle').addEventListener('click', () => $('dupPanel').classList.toggle('collapsed'));
 
       // 新增資產
