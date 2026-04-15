@@ -141,7 +141,13 @@ const ISMS_ASSET_COLUMN_INDICES = {
   RESPONSIBLE_UNIT: 7,   // G欄: 權責單位
   MAIN_CATEGORY: 8,      // H欄: 主類別
   SUB_CATEGORY: 9,       // I欄: 子類別
-  STATUS: 13             // M欄: 狀態
+  STATUS: 13,            // M欄: 狀態
+  CONFIDENTIALITY: 15,   // O欄: 機密性
+  INTEGRITY: 16,         // P欄: 完整性
+  AVAILABILITY: 17,      // Q欄: 可用性
+  ASSET_VALUE: 18,       // R欄: 資產價值
+  GROUP: 19,             // S欄: 組別代號
+  SERIAL_NO: 20          // T欄: 流水號
 };
 
 // ISMS 資產對照表欄位索引
@@ -8379,6 +8385,163 @@ function getIsmsAssetList() {
   } catch (e) {
     Logger.log('getIsmsAssetList 失敗: ' + e.message);
     return { success: false, error: e.message };
+  }
+}
+
+/**
+ * 讀取 ISMS 試算表「下拉選單」工作表，回傳類別 / 組別 / 狀態三組
+ * A 欄=key、B 欄=顯示文字、C 欄=代號
+ */
+function getIsmsDropdownOptions() {
+  try {
+    if (!ISMS_SPREADSHEET_ID || ISMS_SPREADSHEET_ID === 'YOUR_ISMS_SPREADSHEET_ID_HERE') {
+      return { success: false, error: 'ISMS 試算表 ID 尚未設定' };
+    }
+    const ss = SpreadsheetApp.openById(ISMS_SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(ISMS_DROPDOWN_SHEET_NAME);
+    if (!sheet) return { success: false, error: '找不到「下拉選單」工作表' };
+
+    const categories = [];
+    const groups = [];
+    const statuses = [];
+
+    if (sheet.getLastRow() > 1) {
+      const data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getValues();
+      for (let i = 0; i < data.length; i++) {
+        const key = data[i][0] ? String(data[i][0]).trim() : '';
+        const display = data[i][1] ? String(data[i][1]).trim() : '';
+        const code = data[i][2] ? String(data[i][2]).trim() : '';
+        if (!key || !display) continue;
+
+        if (key === '資訊資產類別' || key === '類別') categories.push({ display, code });
+        else if (key === '組別') groups.push({ display, code });
+        else if (key === '資訊資產狀態' || key === '資產狀態' || key === '狀態') statuses.push({ display, code });
+      }
+    }
+
+    return { success: true, categories, groups, statuses };
+  } catch (e) {
+    Logger.log('getIsmsDropdownOptions 錯誤: ' + e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * 新增 ISMS 資訊資產：自動產號 + 計算資產價值
+ * 供盤點流程即時建立新資訊資產使用
+ * @param {Object} form
+ *   - categoryDisplay / categoryCode
+ *   - groupDisplay / groupCode
+ *   - statusDisplay
+ *   - name, description
+ *   - confidentiality, integrity, availability (1~4)
+ * @returns {Object} { success, ismsAssetId, serial, assetValue, rowIndex }
+ */
+function createIsmsAsset(form) {
+  const lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+
+    if (!ISMS_SPREADSHEET_ID || ISMS_SPREADSHEET_ID === 'YOUR_ISMS_SPREADSHEET_ID_HERE') {
+      return { success: false, error: 'ISMS 試算表 ID 尚未設定' };
+    }
+    if (!form || typeof form !== 'object') {
+      return { success: false, error: '表單資料不正確' };
+    }
+
+    const name = (form.name || '').toString().trim();
+    const categoryDisplay = (form.categoryDisplay || '').toString().trim();
+    const categoryCode = (form.categoryCode || '').toString().trim();
+    const groupDisplay = (form.groupDisplay || '').toString().trim();
+    const groupCode = (form.groupCode || '').toString().trim();
+    const statusDisplay = (form.statusDisplay || '').toString().trim();
+    const description = (form.description || '').toString();
+    const c = Number(form.confidentiality);
+    const i = Number(form.integrity);
+    const a = Number(form.availability);
+
+    if (!name) return { success: false, error: '資產名稱必填' };
+    if (!categoryDisplay || !categoryCode) return { success: false, error: '請選擇類別' };
+    if (!groupDisplay || !groupCode) return { success: false, error: '請選擇組別' };
+    const isValidCIA = (n) => Number.isInteger(n) && n >= 1 && n <= 4;
+    if (!isValidCIA(c) || !isValidCIA(i) || !isValidCIA(a)) {
+      return { success: false, error: 'CIA 三項必須是 1~4 的整數' };
+    }
+
+    const ss = SpreadsheetApp.openById(ISMS_SPREADSHEET_ID);
+    const sheet = ss.getSheetByName(ISMS_ASSET_SHEET_NAME);
+    if (!sheet) return { success: false, error: '找不到資訊資產工作表' };
+
+    const idx = ISMS_ASSET_COLUMN_INDICES;
+    // 序號策略：(1) 掃 A 欄比對 `{group}-{category}-\d+` 抽尾號 (2) 備援比對 B/S 欄 (3) 最終迴圈避免撞號
+    const escapeRegExp = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const idPattern = new RegExp('^' + escapeRegExp(groupCode) + '-' + escapeRegExp(categoryCode) + '-(\\d+)$', 'i');
+    const existingIds = new Set();
+    let maxSerial = 0;
+
+    if (sheet.getLastRow() > 1) {
+      const data = sheet.getDataRange().getValues();
+      for (let r = 1; r < data.length; r++) {
+        const row = data[r];
+        const rowId = String(row[idx.ISMS_ASSET_ID - 1] || '').trim();
+        if (rowId) existingIds.add(rowId.toLowerCase());
+
+        const m = rowId.match(idPattern);
+        if (m) {
+          const serial = Number(m[1]);
+          if (!isNaN(serial) && serial > maxSerial) maxSerial = serial;
+          continue;
+        }
+
+        const rowCategory = String(row[idx.CATEGORY - 1] || '').trim();
+        const rowGroup = String(row[idx.GROUP - 1] || '').trim();
+        const categoryMatch = rowCategory === categoryCode || rowCategory === categoryDisplay;
+        const groupMatch = rowGroup === groupCode || rowGroup === groupDisplay;
+        if (!categoryMatch || !groupMatch) continue;
+        const serial = Number(row[idx.SERIAL_NO - 1]);
+        if (!isNaN(serial) && serial > maxSerial) maxSerial = serial;
+      }
+    }
+
+    let nextSerial = maxSerial + 1;
+    let serialPadded = String(nextSerial).padStart(3, '0');
+    let ismsAssetId = `${groupCode}-${categoryCode}-${serialPadded}`;
+    while (existingIds.has(ismsAssetId.toLowerCase())) {
+      nextSerial += 1;
+      serialPadded = String(nextSerial).padStart(3, '0');
+      ismsAssetId = `${groupCode}-${categoryCode}-${serialPadded}`;
+    }
+    const assetValue = c + i + a;
+
+    const row = new Array(21).fill('');
+    row[idx.ISMS_ASSET_ID - 1] = ismsAssetId;
+    row[idx.CATEGORY - 1] = categoryCode;
+    row[idx.NAME - 1] = name;
+    row[idx.DESCRIPTION - 1] = description;
+    row[idx.RESPONSIBLE_UNIT - 1] = groupDisplay;
+    row[idx.STATUS - 1] = statusDisplay;
+    row[idx.CONFIDENTIALITY - 1] = c;
+    row[idx.INTEGRITY - 1] = i;
+    row[idx.AVAILABILITY - 1] = a;
+    row[idx.ASSET_VALUE - 1] = assetValue;
+    row[idx.GROUP - 1] = groupCode;
+    row[idx.SERIAL_NO - 1] = nextSerial;
+
+    sheet.appendRow(row);
+    SpreadsheetApp.flush();
+
+    return {
+      success: true,
+      ismsAssetId,
+      serial: nextSerial,
+      assetValue,
+      rowIndex: sheet.getLastRow()
+    };
+  } catch (e) {
+    Logger.log('createIsmsAsset 錯誤: ' + e.message);
+    return { success: false, error: e.message };
+  } finally {
+    try { lock.releaseLock(); } catch (_) {}
   }
 }
 

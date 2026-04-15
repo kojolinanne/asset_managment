@@ -23,3 +23,4 @@ const LENDING_OUTPUT_FOLDER_ID = "1QYX2WUuuemVwDTzlhC";               // ⚠️ 
 const ISMS_SPREADSHEET_ID = "YOUR_ISMS_SPREADSHEET_ID_HERE"; // ⚠️ 請替換成 ISMS 資訊資產試算表 ID
 const ISMS_ASSET_SHEET_NAME = "資訊資產清單";                   // ISMS 資訊資產清單工作表名稱
 const ISMS_MAPPING_SHEET_NAME = "資產對照表";                   // 資產對照表工作表名稱
+const ISMS_DROPDOWN_SHEET_NAME = "下拉選單";                     // ISMS 試算表內的下拉選單工作表

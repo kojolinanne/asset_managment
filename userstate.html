@@ -2159,6 +2159,262 @@
             };
         };
 
+        // 盤點時直接新增 ISMS 資訊資產的彈窗（對應 isms-connect-asset 子專案的新增功能）
+        const CreateIsmsAssetModal = ({ open, onClose, onCreated }) => {
+            const [loading, setLoading] = useState(false);
+            const [loadError, setLoadError] = useState('');
+            const [categories, setCategories] = useState([]);
+            const [groups, setGroups] = useState([]);
+            const [statuses, setStatuses] = useState([]);
+            const [categoryIdx, setCategoryIdx] = useState(-1);
+            const [groupIdx, setGroupIdx] = useState(-1);
+            const [statusIdx, setStatusIdx] = useState(-1);
+            const [name, setName] = useState('');
+            const [description, setDescription] = useState('');
+            const [c, setC] = useState(2);
+            const [integrity, setIntegrity] = useState(2);
+            const [availability, setAvailability] = useState(2);
+            const [submitting, setSubmitting] = useState(false);
+
+            useEffect(() => {
+                if (!open) return;
+                setName('');
+                setDescription('');
+                setC(2);
+                setIntegrity(2);
+                setAvailability(2);
+                setCategoryIdx(-1);
+                setGroupIdx(-1);
+                setStatusIdx(-1);
+                setLoadError('');
+                setLoading(true);
+                google.script.run
+                    .withSuccessHandler((res) => {
+                        setLoading(false);
+                        if (res && res.success) {
+                            setCategories(res.categories || []);
+                            setGroups(res.groups || []);
+                            setStatuses(res.statuses || []);
+                        } else {
+                            setLoadError((res && res.error) || '載入下拉選單失敗');
+                        }
+                    })
+                    .withFailureHandler((err) => {
+                        setLoading(false);
+                        setLoadError((err && err.message) || String(err));
+                    })
+                    .getIsmsDropdownOptions();
+            }, [open]);
+
+            if (!open) return null;
+
+            const selectedCategory = categoryIdx >= 0 ? categories[categoryIdx] : null;
+            const selectedGroup = groupIdx >= 0 ? groups[groupIdx] : null;
+            const selectedStatus = statusIdx >= 0 ? statuses[statusIdx] : null;
+            const previewId = (selectedCategory && selectedGroup && selectedCategory.code && selectedGroup.code)
+                ? `${selectedGroup.code}-${selectedCategory.code}-???`
+                : '請先選擇組別與類別';
+            const previewValue = Number(c) + Number(integrity) + Number(availability);
+
+            const handleSubmit = () => {
+                if (!selectedCategory || !selectedCategory.display) return alert('請選擇類別');
+                if (!selectedCategory.code) return alert('類別缺少代號，請檢查 ISMS 下拉選單工作表 C 欄');
+                if (!selectedGroup || !selectedGroup.display) return alert('請選擇組別');
+                if (!selectedGroup.code) return alert('組別缺少代號，請檢查 ISMS 下拉選單工作表 C 欄');
+                const trimmedName = name.trim();
+                if (!trimmedName) return alert('請輸入資產名稱');
+                if (!selectedStatus || !selectedStatus.display) return alert('請選擇使用狀態');
+                for (const [label, v] of [['機密性', c], ['完整性', integrity], ['可用性', availability]]) {
+                    const n = Number(v);
+                    if (!Number.isInteger(n) || n < 1 || n > 4) return alert(`${label}必須介於 1~4`);
+                }
+
+                setSubmitting(true);
+                google.script.run
+                    .withSuccessHandler((res) => {
+                        setSubmitting(false);
+                        if (res && res.success) {
+                            const newAsset = {
+                                ismsAssetId: res.ismsAssetId,
+                                category: selectedCategory.display,
+                                name: trimmedName,
+                                mainCategory: '',
+                                subCategory: '',
+                                responsibleUnit: selectedGroup.display
+                            };
+                            if (typeof onCreated === 'function') onCreated(newAsset);
+                            onClose();
+                        } else {
+                            alert('建立失敗：' + ((res && res.error) || '未知錯誤'));
+                        }
+                    })
+                    .withFailureHandler((err) => {
+                        setSubmitting(false);
+                        alert('建立失敗：' + ((err && err.message) || err));
+                    })
+                    .createIsmsAsset({
+                        categoryDisplay: selectedCategory.display,
+                        categoryCode: selectedCategory.code,
+                        groupDisplay: selectedGroup.display,
+                        groupCode: selectedGroup.code,
+                        statusDisplay: selectedStatus.display,
+                        name: trimmedName,
+                        description: description,
+                        confidentiality: Number(c),
+                        integrity: Number(integrity),
+                        availability: Number(availability)
+                    });
+            };
+
+            return (
+                <div
+                    className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+                    onClick={(e) => { if (e.target === e.currentTarget && !submitting) onClose(); }}
+                >
+                    <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[calc(100vh-48px)] overflow-y-auto">
+                        <div className="px-5 py-4 border-b">
+                            <div className="text-base font-semibold text-slate-800 flex items-center gap-2">
+                                <i className="fa-solid fa-plus text-indigo-600"></i>新增資訊資產
+                            </div>
+                            <div className="text-xs text-slate-500 mt-1">系統將依組別+類別自動產生編號，並自動計算資產價值。</div>
+                        </div>
+
+                        <div className="p-5 space-y-3">
+                            {loading && (
+                                <div className="text-center py-6 text-slate-500 text-sm">
+                                    <i className="fa-solid fa-spinner fa-spin mr-2"></i>載入下拉選單中...
+                                </div>
+                            )}
+                            {loadError && !loading && (
+                                <div className="bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-lg px-3 py-2">
+                                    {loadError}
+                                </div>
+                            )}
+
+                            {!loading && !loadError && (
+                                <>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-700 mb-1">類別<span className="text-rose-500 ml-0.5">*</span></label>
+                                            <select
+                                                value={categoryIdx}
+                                                onChange={(e) => setCategoryIdx(Number(e.target.value))}
+                                                className="w-full px-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                            >
+                                                <option value={-1}>請選擇</option>
+                                                {categories.map((opt, i) => (
+                                                    <option key={i} value={i}>{opt.display}{opt.code ? `（${opt.code}）` : ''}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-700 mb-1">組別<span className="text-rose-500 ml-0.5">*</span></label>
+                                            <select
+                                                value={groupIdx}
+                                                onChange={(e) => setGroupIdx(Number(e.target.value))}
+                                                className="w-full px-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                            >
+                                                <option value={-1}>請選擇</option>
+                                                {groups.map((opt, i) => (
+                                                    <option key={i} value={i}>{opt.display}{opt.code ? `（${opt.code}）` : ''}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">資產名稱<span className="text-rose-500 ml-0.5">*</span></label>
+                                        <input
+                                            type="text"
+                                            maxLength={100}
+                                            value={name}
+                                            onChange={(e) => setName(e.target.value)}
+                                            className="w-full px-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                            placeholder="例：人員資料庫"
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">說明</label>
+                                        <textarea
+                                            rows={2}
+                                            value={description}
+                                            onChange={(e) => setDescription(e.target.value)}
+                                            className="w-full px-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-y"
+                                            placeholder="選填"
+                                        ></textarea>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-700 mb-1">使用狀態<span className="text-rose-500 ml-0.5">*</span></label>
+                                        <select
+                                            value={statusIdx}
+                                            onChange={(e) => setStatusIdx(Number(e.target.value))}
+                                            className="w-full px-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        >
+                                            <option value={-1}>請選擇</option>
+                                            {statuses.map((opt, i) => (
+                                                <option key={i} value={i}>{opt.display}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {[
+                                            { label: '機密性 C', value: c, set: setC },
+                                            { label: '完整性 I', value: integrity, set: setIntegrity },
+                                            { label: '可用性 A', value: availability, set: setAvailability }
+                                        ].map((f, i) => (
+                                            <div key={i}>
+                                                <label className="block text-xs font-semibold text-slate-700 mb-1">{f.label}<span className="text-rose-500 ml-0.5">*</span></label>
+                                                <select
+                                                    value={f.value}
+                                                    onChange={(e) => f.set(Number(e.target.value))}
+                                                    className="w-full px-2 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                                >
+                                                    {[1, 2, 3, 4].map(v => <option key={v} value={v}>{v}</option>)}
+                                                </select>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2 space-y-1">
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-slate-600">資訊資產編號</span>
+                                            <span className={`font-mono ${selectedCategory && selectedGroup && selectedCategory.code && selectedGroup.code ? 'text-indigo-700 font-semibold' : 'text-slate-400'}`}>{previewId}</span>
+                                        </div>
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-slate-600">資產價值</span>
+                                            <span className="font-mono text-indigo-700 font-semibold">{previewValue}</span>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        <div className="px-5 py-3 border-t bg-slate-50 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                disabled={submitting}
+                                className="px-3 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50 text-sm"
+                            >
+                                取消
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSubmit}
+                                disabled={submitting || loading || !!loadError}
+                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-50 text-sm font-medium inline-flex items-center gap-2"
+                            >
+                                {submitting ? <><i className="fa-solid fa-spinner fa-spin"></i>建立中...</> : <><i className="fa-solid fa-check"></i>確認新增</>}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         const useInventoryFormState = ({ asset, isBatch = false, ismsAssets = [], ismsEnabled = false, initialResult = INVENTORY_STATUS_LABELS.NORMAL, resetKey = '' }) => {
             const defaults = useMemo(() => createInventoryFormDefaults({ asset, isBatch, initialResult }), [
                 asset?.assetId,
@@ -2290,7 +2546,7 @@
             };
         };
 
-        const InventoryFormFields = ({ form, ismsEnabled = false, compact = false }) => {
+        const InventoryFormFields = ({ form, ismsEnabled = false, compact = false, onIsmsAssetCreated }) => {
             const {
                 result,
                 setResult,
@@ -2309,6 +2565,14 @@
                 filteredIsmsAssets,
                 selectedIsmsAsset
             } = form;
+
+            const [createIsmsOpen, setCreateIsmsOpen] = useState(false);
+
+            const handleCreatedIsmsAsset = (newAsset) => {
+                if (typeof onIsmsAssetCreated === 'function') onIsmsAssetCreated(newAsset);
+                setSelectedIsmsAssetId(newAsset.ismsAssetId);
+                setIsmsSearchKeyword('');
+            };
 
             return (
                 <>
@@ -2396,10 +2660,20 @@
 
                                     {isItAsset && (
                                         <div className="space-y-2">
-                                            <label className="block text-sm font-medium text-slate-700">
-                                                對應資訊資產
-                                                <span className="text-slate-400 font-normal ml-1">（選填）</span>
-                                            </label>
+                                            <div className="flex items-center justify-between">
+                                                <label className="block text-sm font-medium text-slate-700">
+                                                    對應資訊資產
+                                                    <span className="text-slate-400 font-normal ml-1">（選填）</span>
+                                                </label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCreateIsmsOpen(true)}
+                                                    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 rounded"
+                                                    title="新增資訊資產"
+                                                >
+                                                    <i className="fa-solid fa-plus"></i>新增
+                                                </button>
+                                            </div>
 
                                             <div className="relative">
                                                 <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
@@ -2460,6 +2734,12 @@
                             )}
                         </div>
                     )}
+
+                    <CreateIsmsAssetModal
+                        open={createIsmsOpen}
+                        onClose={() => setCreateIsmsOpen(false)}
+                        onCreated={handleCreatedIsmsAsset}
+                    />
                 </>
             );
         };
@@ -5554,7 +5834,7 @@
             </div>
         );
 
-        const ActionPanel = ({ asset, displayMode = 'modal', hasInventoryTask, inventoryStatusLabel, ismsAssets = [], ismsEnabled = false, onSelectAction, onSelectInventory, onClose }) => {
+        const ActionPanel = ({ asset, displayMode = 'modal', hasInventoryTask, inventoryStatusLabel, ismsAssets = [], ismsEnabled = false, onSelectAction, onSelectInventory, onClose, onIsmsAssetCreated }) => {
             const hasAsset = Boolean(asset && asset.assetId);
             const [panelView, setPanelView] = useState('actions');
             const [inventoryInitialResult, setInventoryInitialResult] = useState(INVENTORY_STATUS_LABELS.NORMAL);
@@ -5662,6 +5942,7 @@
                                     form={inventoryForm}
                                     ismsEnabled={ismsEnabled}
                                     compact={true}
+                                    onIsmsAssetCreated={onIsmsAssetCreated}
                                 />
                             </div>
                         ) : (
@@ -11659,7 +11940,7 @@
         };
 
         // ========== 盤點確認 Modal（單筆/批次共用，含 ISMS 資訊資產分類）==========
-            const InventoryConfirmModal = ({ asset, assetIds, isBatch, sessionCount, submitMode = 'submit', initialResult = INVENTORY_STATUS_LABELS.NORMAL, onQueue, onClose, onSuccess, ismsAssets: ismsAssetsProp, ismsEnabled: ismsEnabledProp }) => {
+            const InventoryConfirmModal = ({ asset, assetIds, isBatch, sessionCount, submitMode = 'submit', initialResult = INVENTORY_STATUS_LABELS.NORMAL, onQueue, onClose, onSuccess, ismsAssets: ismsAssetsProp, ismsEnabled: ismsEnabledProp, onIsmsAssetCreated }) => {
             const [isSubmitting, setIsSubmitting] = useState(false);
             const [isResetting, setIsResetting] = useState(false);
             const normalizedSessionCount = typeof sessionCount === 'number' ? sessionCount : 0;
@@ -11907,6 +12188,7 @@
                             <InventoryFormFields
                                 form={inventoryForm}
                                 ismsEnabled={ismsFeatureEnabled}
+                                onIsmsAssetCreated={onIsmsAssetCreated}
                             />
                         </div>
 
@@ -12033,6 +12315,13 @@
             const [inventoryStatusByAsset, setInventoryStatusByAsset] = useState({});
             const [ismsAssets, setIsmsAssets] = useState([]); // ✨ ISMS 資訊資產清單
             const [ismsEnabled, setIsmsEnabled] = useState(false); // ✨ ISMS 是否啟用
+            const handleIsmsAssetCreated = useCallback((newAsset) => {
+                if (!newAsset || !newAsset.ismsAssetId) return;
+                setIsmsAssets(prev => {
+                    if (prev.some(a => a.ismsAssetId === newAsset.ismsAssetId)) return prev;
+                    return [...prev, newAsset];
+                });
+            }, []);
             const viewModeInitializedRef = useRef(false);
             const inventoryToastTimerRef = useRef(null);
             const pendingInventoryLoadRef = useRef(null);
@@ -15112,6 +15401,7 @@
                                     inventoryStatusLabel={actionPanelState.assetId ? resolveInventoryStatusLabel(actionPanelState.assetId) : '無盤點任務'}
                                     ismsAssets={ismsAssets}
                                     ismsEnabled={ismsEnabled}
+                                    onIsmsAssetCreated={handleIsmsAssetCreated}
                                     onSelectAction={(actionType) => openQueueActionModal(actionType)}
                                     onSelectInventory={handleInventoryQueue}
                                     onClose={closeActionPanel}
@@ -15348,6 +15638,7 @@
                             onSuccess={handleInventorySuccess}
                             ismsAssets={ismsAssets}
                             ismsEnabled={ismsEnabled}
+                            onIsmsAssetCreated={handleIsmsAssetCreated}
                         />
                     )}
 
@@ -15366,6 +15657,7 @@
                             onSuccess={handleInventorySuccess}
                             ismsAssets={ismsAssets}
                             ismsEnabled={ismsEnabled}
+                            onIsmsAssetCreated={handleIsmsAssetCreated}
                         />
                     )}
                 </div>
