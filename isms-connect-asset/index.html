@@ -1267,8 +1267,10 @@
     function renderStats() {
       $('statTotal').textContent = state.all.length.toLocaleString();
       const physicalTotal = state.all.reduce((sum, a) => {
-        const raw = (a.quantityOriginal != null ? a.quantityOriginal : a.quantity);
-        const n = parseInt(String(raw).replace(/[^0-9-]/g, ''), 10);
+        const u = String(a.inventoryCount != null ? a.inventoryCount : '').trim();
+        const e = String(a.quantityOriginal != null ? a.quantityOriginal : '').trim();
+        const raw = u !== '' ? u : e;
+        const n = parseInt(raw.replace(/[^0-9-]/g, ''), 10);
         return sum + (Number.isFinite(n) ? n : 0);
       }, 0);
       $('statPhysicalTotal').textContent = physicalTotal.toLocaleString();
