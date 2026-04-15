@@ -728,12 +728,7 @@
         </div>
         <select id="filterCategory" class="field"><option value="">全部類別</option></select>
         <select id="filterUnit" class="field"><option value="">全部權責單位</option></select>
-        <select id="filterStatus" class="field">
-          <option value="">全部狀態</option>
-          <option value="使用中">使用中</option>
-          <option value="停用中">停用中</option>
-          <option value="已轉移至VM">已轉移至VM</option>
-        </select>
+        <select id="filterStatus" class="field"><option value="">全部狀態</option></select>
         <select id="filterProcess" class="field"><option value="">全部業務流程</option></select>
         <div class="range-wrap" title="篩選資產價值範圍（數字）">
           <label><i class="fa-solid fa-chart-simple text-slate-400 mr-1"></i>價值</label>
@@ -1277,9 +1272,11 @@
     function populateFilters() {
       const catSel = $('filterCategory');
       const unitSel = $('filterUnit');
+      const statusSel = $('filterStatus');
       const processSel = $('filterProcess');
       while (catSel.options.length > 1) catSel.remove(1);
       while (unitSel.options.length > 1) unitSel.remove(1);
+      while (statusSel.options.length > 1) statusSel.remove(1);
       while (processSel.options.length > 1) processSel.remove(1);
 
       const cats = [...new Set(state.all.map(a => (a.category || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-TW'));
@@ -1293,6 +1290,12 @@
         const o = document.createElement('option');
         o.value = u; o.textContent = u;
         unitSel.appendChild(o);
+      }
+      const statuses = [...new Set(state.all.map(a => (a.status || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-TW'));
+      for (const s of statuses) {
+        const o = document.createElement('option');
+        o.value = s; o.textContent = s;
+        statusSel.appendChild(o);
       }
       const processes = [...new Set(state.all.map(a => (a.businessProcess || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-TW'));
       for (const p of processes) {
@@ -2012,6 +2015,7 @@
       $('filterCategory').addEventListener('change', applyFilters);
       $('filterUnit').addEventListener('change', applyFilters);
       $('filterStatus').addEventListener('change', applyFilters);
+      $('filterProcess').addEventListener('change', applyFilters);
       $('filterValueMin').addEventListener('input', applyFilters);
       $('filterValueMax').addEventListener('input', applyFilters);
       $('btnClear').addEventListener('click', clearFilters);
