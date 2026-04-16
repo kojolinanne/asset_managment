@@ -2093,5 +2093,288 @@
       loadCurrentUser();  // 取得當前使用者(供刪除按鈕權限判斷)
     });
   </script>
+
+  <!-- ========== 浮動快速導航按鈕 (FAB) ========== -->
+  <style>
+    /* FAB 容器 */
+    .fab-container {
+      position: fixed;
+      z-index: 9999;
+      bottom: 32px;
+      right: 32px;
+      display: flex;
+      flex-direction: column-reverse;
+      align-items: center;
+      gap: 0;
+      user-select: none;
+      touch-action: none;
+    }
+
+    /* 主按鈕 */
+    .fab-main {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      color: #fff;
+      font-size: 22px;
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 24px rgba(37, 99, 235, 0.4);
+      transition: transform 0.25s cubic-bezier(.4,0,.2,1), box-shadow 0.25s;
+      position: relative;
+    }
+    .fab-main:hover {
+      box-shadow: 0 8px 30px rgba(37, 99, 235, 0.55);
+    }
+    .fab-main:active {
+      cursor: grabbing;
+    }
+    .fab-main .fab-icon {
+      transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+      pointer-events: none;
+    }
+    .fab-container.open .fab-main .fab-icon {
+      transform: rotate(135deg);
+    }
+    /* 拖曳視覺提示 */
+    .fab-main.dragging {
+      opacity: 0.85;
+      box-shadow: 0 10px 40px rgba(37, 99, 235, 0.5);
+      transform: scale(1.08);
+    }
+
+    /* 子按鈕容器 */
+    .fab-menu {
+      display: flex;
+      flex-direction: column-reverse;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(20px) scale(0.8);
+      transition: opacity 0.25s cubic-bezier(.4,0,.2,1), transform 0.25s cubic-bezier(.4,0,.2,1);
+    }
+    .fab-container.open .fab-menu {
+      pointer-events: auto;
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+
+    /* 單一子按鈕 */
+    .fab-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      white-space: nowrap;
+      animation: fabItemIn 0.3s both;
+    }
+    .fab-container.open .fab-item:nth-child(1) { animation-delay: 0.04s; }
+    .fab-container.open .fab-item:nth-child(2) { animation-delay: 0.1s; }
+    .fab-container.open .fab-item:nth-child(3) { animation-delay: 0.16s; }
+
+    @keyframes fabItemIn {
+      from { opacity: 0; transform: translateY(12px) scale(0.85); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .fab-item-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      color: #fff;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 3px 14px rgba(0,0,0,0.18);
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .fab-item-btn:hover {
+      transform: scale(1.12);
+      box-shadow: 0 5px 18px rgba(0,0,0,0.25);
+    }
+    .fab-item-label {
+      background: rgba(15, 23, 42, 0.88);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 5px 12px;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      pointer-events: none;
+    }
+
+    /* 遮罩層 */
+    .fab-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 9998;
+      background: rgba(15, 23, 42, 0.12);
+      backdrop-filter: blur(2px);
+      transition: opacity 0.25s;
+    }
+    .fab-overlay.show {
+      display: block;
+    }
+  </style>
+
+  <!-- 遮罩 -->
+  <div class="fab-overlay" id="fabOverlay"></div>
+
+  <!-- FAB 按鈕群組 -->
+  <div class="fab-container" id="fabContainer">
+    <button class="fab-main" id="fabMain" title="快速導航">
+      <i class="fa-solid fa-plus fab-icon"></i>
+    </button>
+    <div class="fab-menu" id="fabMenu">
+      <!-- 子按鈕 1：資產對照管理（connect.html） -->
+      <a class="fab-item" id="fabLinkConnect" href="#" target="_blank">
+        <span class="fab-item-label">資產對照管理</span>
+        <span class="fab-item-btn" style="background: linear-gradient(135deg, #0891b2, #0e7490);">
+          <i class="fa-solid fa-link"></i>
+        </span>
+      </a>
+      <!-- 子按鈕 2：主資產管理系統 -->
+      <a class="fab-item" id="fabLinkMain" href="#" target="_blank">
+        <span class="fab-item-label">主資產管理系統</span>
+        <span class="fab-item-btn" style="background: linear-gradient(135deg, #059669, #047857);">
+          <i class="fa-solid fa-building"></i>
+        </span>
+      </a>
+      <!-- 子按鈕 3：ISMS 試算表 -->
+      <a class="fab-item" id="fabLinkSheet" href="#" target="_blank">
+        <span class="fab-item-label">ISMS 試算表</span>
+        <span class="fab-item-btn" style="background: linear-gradient(135deg, #d97706, #b45309);">
+          <i class="fa-solid fa-table"></i>
+        </span>
+      </a>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    'use strict';
+
+    // ===== 設定快速導航連結 =====
+    // connect.html 用 ?page=connect 拼接自身 Web App 的 URL
+    // 主系統和試算表的 URL 透過後端取得或硬編碼
+    google.script.run
+      .withSuccessHandler(function(urls) {
+        if (urls.connectUrl)  document.getElementById('fabLinkConnect').href = urls.connectUrl;
+        if (urls.mainAppUrl)  document.getElementById('fabLinkMain').href = urls.mainAppUrl;
+        if (urls.sheetUrl)    document.getElementById('fabLinkSheet').href = urls.sheetUrl;
+      })
+      .withFailureHandler(function() {
+        // 後端取不到時,保留 # 讓使用者自覺無法跳轉
+      })
+      .getFabNavigationUrls();
+
+    // ===== FAB 開關 =====
+    var container = document.getElementById('fabContainer');
+    var mainBtn   = document.getElementById('fabMain');
+    var overlay   = document.getElementById('fabOverlay');
+    var isOpen    = false;
+
+    function toggleFab() {
+      isOpen = !isOpen;
+      container.classList.toggle('open', isOpen);
+      overlay.classList.toggle('show', isOpen);
+    }
+    function closeFab() {
+      if (!isOpen) return;
+      isOpen = false;
+      container.classList.remove('open');
+      overlay.classList.remove('show');
+    }
+
+    overlay.addEventListener('click', closeFab);
+
+    // ===== 拖曳功能 =====
+    var isDragging = false;
+    var hasMoved   = false;
+    var startX, startY, origX, origY;
+    var DRAG_THRESHOLD = 6; // px，低於此不算拖曳
+
+    function getContainerPos() {
+      var rect = container.getBoundingClientRect();
+      return { x: rect.left, y: rect.top };
+    }
+
+    function onPointerDown(e) {
+      if (e.target.closest('.fab-menu')) return; // 子按鈕不攔截
+      e.preventDefault();
+      var t = e.touches ? e.touches[0] : e;
+      startX = t.clientX;
+      startY = t.clientY;
+      var pos = getContainerPos();
+      // 換算 bottom/right 到 left/top
+      origX = container.offsetLeft || (window.innerWidth - container.offsetWidth - 32);
+      origY = container.offsetTop  || (window.innerHeight - container.offsetHeight - 32);
+      // 改用 left/top 定位
+      container.style.left   = origX + 'px';
+      container.style.top    = origY + 'px';
+      container.style.right  = 'auto';
+      container.style.bottom = 'auto';
+      isDragging = true;
+      hasMoved   = false;
+    }
+
+    function onPointerMove(e) {
+      if (!isDragging) return;
+      var t = e.touches ? e.touches[0] : e;
+      var dx = t.clientX - startX;
+      var dy = t.clientY - startY;
+      if (!hasMoved && Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
+      hasMoved = true;
+      mainBtn.classList.add('dragging');
+      closeFab();
+
+      var newX = origX + dx;
+      var newY = origY + dy;
+      // 邊界限制
+      var maxX = window.innerWidth  - container.offsetWidth;
+      var maxY = window.innerHeight - container.offsetHeight;
+      newX = Math.max(0, Math.min(newX, maxX));
+      newY = Math.max(0, Math.min(newY, maxY));
+
+      container.style.left = newX + 'px';
+      container.style.top  = newY + 'px';
+    }
+
+    function onPointerUp(e) {
+      if (!isDragging) return;
+      isDragging = false;
+      mainBtn.classList.remove('dragging');
+      if (!hasMoved) {
+        toggleFab();
+      }
+    }
+
+    // 桌面
+    mainBtn.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('mousemove', onPointerMove);
+    document.addEventListener('mouseup',   onPointerUp);
+    // 行動裝置
+    mainBtn.addEventListener('touchstart', onPointerDown, { passive: false });
+    document.addEventListener('touchmove',  onPointerMove, { passive: false });
+    document.addEventListener('touchend',   onPointerUp);
+
+    // 子按鈕點擊後自動收合
+    document.querySelectorAll('.fab-item').forEach(function(link) {
+      link.addEventListener('click', function() {
+        setTimeout(closeFab, 150);
+      });
+    });
+  })();
+  </script>
 </body>
 </html>

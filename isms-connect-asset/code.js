@@ -1073,6 +1073,18 @@ function exportMappingReport() {
 }
 
 /**
+ * 取得浮動按鈕導航連結
+ */
+function getFabNavigationUrls() {
+  var baseUrl = ScriptApp.getService().getUrl();
+  return {
+    connectUrl: baseUrl + '?page=connect',
+    mainAppUrl: 'https://docs.google.com/spreadsheets/d/' + CONFIG.ASSET_SPREADSHEET_ID,
+    sheetUrl: 'https://docs.google.com/spreadsheets/d/' + CONFIG.ISMS_SPREADSHEET_ID
+  };
+}
+
+/**
  * 初始化對照表工作表
  */
 function initMappingSheet() {
