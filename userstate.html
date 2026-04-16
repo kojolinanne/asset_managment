@@ -15208,7 +15208,7 @@
                     <div className="page-hero mb-6">
                         {/* 左側：標題 */}
                         <div className="page-hero__text">
-                            <h1 className="page-title">財產狀態查詢</h1>
+                            <h1 className="page-title">財產狀態管理</h1>
                             <p className="page-subtitle">
                                 {currentUserName && <span className="font-medium text-slate-700">{currentUserName}</span>}
                                 {currentUserName && '，'}歡迎回來，今天是 {(() => {
@@ -15301,6 +15301,16 @@
                                         <span className="hidden sm:inline">新增資產</span>
                                     </button>
                                 )}
+
+                                {/* 操作說明書按鈕 */}
+                                <button
+                                    onClick={() => window.open('https://drive.google.com/file/d/YOUR_PDF_FILE_ID/view', '_blank')}
+                                    className="hero-btn hero-btn--ghost"
+                                    title="開啟操作說明書"
+                                >
+                                    <i className="fa-solid fa-book text-slate-500"></i>
+                                    <span className="hidden sm:inline">操作說明</span>
+                                </button>
 
                                 {/* 重新整理按鈕 */}
                                 <button
