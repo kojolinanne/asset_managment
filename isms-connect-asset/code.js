@@ -13,10 +13,13 @@ function doGet(e) {
   }
 
   const page = (e && e.parameter && e.parameter.page) ? e.parameter.page : '';
-  // 預設頁面 = 資訊資產清單儀表板 (index.html);?page=connect → 資產對照管理 (connect.html)
-  const isConnect = page === 'connect';
-  const html = HtmlService.createHtmlOutputFromFile(isConnect ? 'connect' : 'index');
-  html.setTitle(isConnect ? '資產與資訊資產對照管理' : '資訊資產清單');
+  // 路由：預設=index, connect=對照管理, softwarelist=軟體清冊
+  var file = 'index';
+  var title = '資訊資產清單';
+  if (page === 'connect') { file = 'connect'; title = '資產與資訊資產對照管理'; }
+  else if (page === 'softwarelist') { file = 'softwarelist'; title = '軟體清冊管理'; }
+  const html = HtmlService.createHtmlOutputFromFile(file);
+  html.setTitle(title);
   html.addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
   html.setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   return html;
@@ -1079,9 +1082,120 @@ function getFabNavigationUrls() {
   var baseUrl = ScriptApp.getService().getUrl();
   return {
     connectUrl: baseUrl + '?page=connect',
-    mainAppUrl: 'https://script.google.com/a/macros/as.edu.tw/s/AKfycbxkg0u0OFBLCft2gHstJ3eVE94INrZ1G59Ek0MIs_fmdLG00N9YoHyH9EmbW4geifg7/exec',
-    sheetUrl: 'https://docs.google.com/spreadsheets/d/' + CONFIG.ISMS_SPREADSHEET_ID
+    softwareListUrl: baseUrl + '?page=softwarelist',
+    mainAppUrl: 'https://script.google.com/a/macros/as.edu.tw/s/AKfycbxkg0u0OFBLCft2gHstJ3eVE94INrZ1G59Ek0MIs_fmdLG00N9YoHyH9EmbW4geifg7/exec'
   };
+}
+
+// ==========================================
+// 軟體清冊 API
+// ==========================================
+
+/**
+ * 取得軟體清冊資料
+ * @param {Object} options - 篩選選項
+ *   - searchKeyword: 關鍵字搜尋
+ *   - filterType: 軟體類型篩選
+ *   - filterUnit: 保管單位篩選
+ * @returns {Object} { success, data, totalCount }
+ */
+function getSoftwareList(options) {
+  options = options || {};
+  try {
+    var ss = SpreadsheetApp.openById(CONFIG.ISMS_SPREADSHEET_ID);
+    var sheet = ss.getSheetByName(CONFIG.SOFTWARE_SHEET_NAME);
+    if (!sheet) {
+      return { success: false, error: '找不到「軟體清冊」工作表' };
+    }
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow <= 1) {
+      return { success: true, data: [], totalCount: 0 };
+    }
+
+    var rawData = sheet.getRange(2, 1, lastRow - 1, 9).getValues();
+    var idx = SOFTWARE_COLUMN_INDICES;
+    var data = [];
+
+    for (var i = 0; i < rawData.length; i++) {
+      var row = rawData[i];
+      var softwareId = row[idx.SOFTWARE_ID - 1] ? String(row[idx.SOFTWARE_ID - 1]).trim() : '';
+      if (!softwareId) continue;
+
+      data.push({
+        softwareId: softwareId,
+        softwareName: row[idx.SOFTWARE_NAME - 1] ? String(row[idx.SOFTWARE_NAME - 1]).trim() : '',
+        quantity: row[idx.QUANTITY - 1] ? String(row[idx.QUANTITY - 1]).trim() : '',
+        custodyUnit: row[idx.CUSTODY_UNIT - 1] ? String(row[idx.CUSTODY_UNIT - 1]).trim() : '',
+        custodian: row[idx.CUSTODIAN - 1] ? String(row[idx.CUSTODIAN - 1]).trim() : '',
+        user: row[idx.USER - 1] ? String(row[idx.USER - 1]).trim() : '',
+        softwareType: row[idx.SOFTWARE_TYPE - 1] ? String(row[idx.SOFTWARE_TYPE - 1]).trim() : '',
+        typeCode: row[idx.TYPE_CODE - 1] ? String(row[idx.TYPE_CODE - 1]).trim() : '',
+        serialNo: row[idx.SERIAL_NO - 1] ? String(row[idx.SERIAL_NO - 1]).trim() : ''
+      });
+    }
+
+    var totalCount = data.length;
+    var filtered = data;
+
+    // 關鍵字篩選
+    if (options.searchKeyword) {
+      var keyword = options.searchKeyword.toLowerCase();
+      filtered = filtered.filter(function(item) {
+        return item.softwareId.toLowerCase().indexOf(keyword) >= 0 ||
+               item.softwareName.toLowerCase().indexOf(keyword) >= 0 ||
+               item.custodian.toLowerCase().indexOf(keyword) >= 0 ||
+               item.user.toLowerCase().indexOf(keyword) >= 0 ||
+               item.serialNo.toLowerCase().indexOf(keyword) >= 0;
+      });
+    }
+
+    // 軟體類型篩選
+    if (options.filterType) {
+      filtered = filtered.filter(function(item) {
+        return item.softwareType === options.filterType;
+      });
+    }
+
+    // 保管單位篩選
+    if (options.filterUnit) {
+      filtered = filtered.filter(function(item) {
+        return item.custodyUnit === options.filterUnit;
+      });
+    }
+
+    return { success: true, data: filtered, totalCount: totalCount };
+  } catch (e) {
+    console.error('getSoftwareList 錯誤:', e);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * 取得軟體清冊的下拉選項（不重複的軟體類型、保管單位）
+ * @returns {Object} { success, types, units }
+ */
+function getSoftwareDropdownOptions() {
+  try {
+    var result = getSoftwareList({});
+    if (!result.success) return result;
+
+    var typeSet = {};
+    var unitSet = {};
+    for (var i = 0; i < result.data.length; i++) {
+      var item = result.data[i];
+      if (item.softwareType) typeSet[item.softwareType] = true;
+      if (item.custodyUnit) unitSet[item.custodyUnit] = true;
+    }
+
+    var types = Object.keys(typeSet).sort(function(a, b) { return a.localeCompare(b, 'zh-TW'); });
+    var units = Object.keys(unitSet).sort(function(a, b) { return a.localeCompare(b, 'zh-TW'); });
+
+    return { success: true, types: types, units: units };
+  } catch (e) {
+    console.error('getSoftwareDropdownOptions 錯誤:', e);
+    return { success: false, error: e.message };
+  }
 }
 
 /**

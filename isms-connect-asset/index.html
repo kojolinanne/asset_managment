@@ -2314,11 +2314,11 @@
           <i class="fa-solid fa-building"></i>
         </span>
       </a>
-      <!-- 子按鈕 3：ISMS 試算表 -->
-      <a class="fab-item" id="fabLinkSheet" href="#" target="_blank">
-        <span class="fab-item-label">ISMS 試算表</span>
-        <span class="fab-item-btn" style="background: linear-gradient(135deg, #d97706, #b45309);">
-          <i class="fa-solid fa-table"></i>
+      <!-- 子按鈕 3：軟體清冊 -->
+      <a class="fab-item" id="fabLinkSoftware" href="#" target="_blank">
+        <span class="fab-item-label">軟體清冊</span>
+        <span class="fab-item-btn" style="background: linear-gradient(135deg, #7c3aed, #6d28d9);">
+          <i class="fa-solid fa-compact-disc"></i>
         </span>
       </a>
     </div>
@@ -2335,7 +2335,7 @@
       .withSuccessHandler(function(urls) {
         if (urls.connectUrl)  document.getElementById('fabLinkConnect').href = urls.connectUrl;
         if (urls.mainAppUrl)  document.getElementById('fabLinkMain').href = urls.mainAppUrl;
-        if (urls.sheetUrl)    document.getElementById('fabLinkSheet').href = urls.sheetUrl;
+        if (urls.softwareListUrl) document.getElementById('fabLinkSoftware').href = urls.softwareListUrl;
       })
       .withFailureHandler(function() {
         // 後端取不到時,保留 # 讓使用者自覺無法跳轉

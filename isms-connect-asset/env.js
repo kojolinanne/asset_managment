@@ -23,7 +23,10 @@ const CONFIG = {
   ISMS_PERMISSION_SHEET_NAME: '權限',
 
   // 管理員名單(legacy,位於主試算表;已停用,改用 ISMS_PERMISSION_SHEET_NAME)
-  ADMIN_LIST_SHEET_NAME: '管理員名單'
+  ADMIN_LIST_SHEET_NAME: '管理員名單',
+
+  // 軟體清冊工作表
+  SOFTWARE_SHEET_NAME: '軟體清冊'
 };
 
 // ==========================================
@@ -106,6 +109,19 @@ const MAPPING_COLUMN_INDICES = {
   CREATED_TIME: 3,       // C欄: 建立時間
   CREATED_BY: 4,         // D欄: 建立人
   REMARKS: 5             // E欄: 備註
+};
+
+// 軟體清冊欄位索引（A~I 欄）
+const SOFTWARE_COLUMN_INDICES = {
+  SOFTWARE_ID: 1,        // A欄: 軟體編號
+  SOFTWARE_NAME: 2,      // B欄: 軟體名稱
+  QUANTITY: 3,           // C欄: 數量
+  CUSTODY_UNIT: 4,       // D欄: 保管單位
+  CUSTODIAN: 5,          // E欄: 保管人
+  USER: 6,               // F欄: 使用人
+  SOFTWARE_TYPE: 7,      // G欄: 軟體類型
+  TYPE_CODE: 8,          // H欄: 類型代碼
+  SERIAL_NO: 9           // I欄: 編號
 };
 
 // 資訊資產操作紀錄欄位索引
