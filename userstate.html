@@ -15697,5 +15697,347 @@
 
         ReactDOM.createRoot(document.getElementById('react-root')).render(<App />);
     </script>
+
+    <!-- ========== 浮動快速導航按鈕 (FAB) ========== -->
+    <style>
+      /* FAB 容器 */
+      .fab-container {
+        position: fixed;
+        z-index: 9999;
+        bottom: 32px;
+        right: 32px;
+        display: flex;
+        flex-direction: column-reverse;
+        align-items: center;
+        gap: 0;
+        user-select: none;
+        touch-action: none;
+      }
+
+      /* 主按鈕 — 使用主專案 teal 配色 */
+      .fab-main {
+        width: 58px;
+        height: 58px;
+        border-radius: 50%;
+        border: none;
+        background: linear-gradient(135deg, #1aa39f 0%, #2f6c7f 50%, #1aa39f 100%);
+        background-size: 200% 200%;
+        color: #fff;
+        font-size: 20px;
+        cursor: grab;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow:
+          0 6px 24px rgba(26, 163, 159, 0.4),
+          0 0 0 0 rgba(47, 108, 127, 0);
+        transition: transform 0.25s cubic-bezier(.4,0,.2,1), box-shadow 0.25s;
+        position: relative;
+        animation:
+          fabPulse 3s ease-in-out infinite,
+          fabGradient 4s ease infinite;
+      }
+      /* 外圈脈動光環 */
+      .fab-main::before {
+        content: '';
+        position: absolute;
+        inset: -4px;
+        border-radius: 50%;
+        border: 2px solid rgba(26, 163, 159, 0.35);
+        animation: fabRingPulse 3s ease-in-out infinite;
+        pointer-events: none;
+      }
+      .fab-main:hover {
+        box-shadow: 0 8px 30px rgba(26, 163, 159, 0.55);
+      }
+      .fab-main:active {
+        cursor: grabbing;
+      }
+
+      /* 閒置呼吸脈動 */
+      @keyframes fabPulse {
+        0%, 100% { transform: scale(1); }
+        50%      { transform: scale(1.06); }
+      }
+      /* 漸層緩慢流動 */
+      @keyframes fabGradient {
+        0%, 100% { background-position: 0% 50%; }
+        50%      { background-position: 100% 50%; }
+      }
+      /* 外圈光環擴散 */
+      @keyframes fabRingPulse {
+        0%, 100% { opacity: 0.5; transform: scale(1); }
+        50%      { opacity: 0; transform: scale(1.25); }
+      }
+
+      /* 圖示：閒置緩慢旋轉 */
+      .fab-main .fab-icon-svg {
+        pointer-events: none;
+        transition: transform 0.35s cubic-bezier(.4,0,.2,1);
+        animation: fabIconSpin 8s linear infinite;
+      }
+      @keyframes fabIconSpin {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(360deg); }
+      }
+
+      /* 展開時：停止所有閒置動畫 */
+      .fab-container.open .fab-main {
+        animation: none;
+      }
+      .fab-container.open .fab-main::before {
+        animation: none;
+        opacity: 0;
+      }
+      .fab-container.open .fab-main .fab-icon-svg {
+        animation: none;
+        transform: rotate(180deg);
+      }
+
+      /* 拖曳視覺提示 */
+      .fab-main.dragging {
+        opacity: 0.85;
+        box-shadow: 0 10px 40px rgba(26, 163, 159, 0.5);
+        transform: scale(1.08);
+        animation: none;
+      }
+      .fab-main.dragging::before {
+        animation: none;
+        opacity: 0;
+      }
+      .fab-main.dragging .fab-icon-svg {
+        animation: none;
+      }
+
+      /* 子按鈕容器 */
+      .fab-menu {
+        display: flex;
+        flex-direction: column-reverse;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 14px;
+        pointer-events: none;
+        opacity: 0;
+        transform: translateY(20px) scale(0.8);
+        transition: opacity 0.25s cubic-bezier(.4,0,.2,1), transform 0.25s cubic-bezier(.4,0,.2,1);
+      }
+      .fab-container.open .fab-menu {
+        pointer-events: auto;
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+
+      /* 單一子按鈕 */
+      .fab-nav-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        white-space: nowrap;
+        animation: fabItemIn 0.3s both;
+      }
+      .fab-container.open .fab-nav-item:nth-child(1) { animation-delay: 0.04s; }
+      .fab-container.open .fab-nav-item:nth-child(2) { animation-delay: 0.1s; }
+      .fab-container.open .fab-nav-item:nth-child(3) { animation-delay: 0.16s; }
+      .fab-container.open .fab-nav-item:nth-child(4) { animation-delay: 0.22s; }
+
+      @keyframes fabItemIn {
+        from { opacity: 0; transform: translateY(12px) scale(0.85); }
+        to   { opacity: 1; transform: translateY(0) scale(1); }
+      }
+
+      .fab-nav-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: none;
+        color: #fff;
+        font-size: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 3px 14px rgba(0,0,0,0.18);
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+      }
+      .fab-nav-btn:hover {
+        transform: scale(1.12);
+        box-shadow: 0 5px 18px rgba(0,0,0,0.25);
+      }
+      .fab-nav-label {
+        background: rgba(15, 23, 42, 0.88);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 500;
+        padding: 5px 12px;
+        border-radius: 6px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        pointer-events: none;
+      }
+
+      /* 遮罩層 */
+      .fab-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 9998;
+        background: rgba(15, 23, 42, 0.12);
+        backdrop-filter: blur(2px);
+        transition: opacity 0.25s;
+      }
+      .fab-overlay.show {
+        display: block;
+      }
+    </style>
+
+    <!-- 遮罩 -->
+    <div class="fab-overlay" id="fabOverlay"></div>
+
+    <!-- FAB 按鈕群組 -->
+    <div class="fab-container" id="fabContainer">
+      <button class="fab-main" id="fabMain" title="快速導航">
+        <svg class="fab-icon-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12,2 20,7 20,17 12,22 4,17 4,7" />
+          <circle cx="12" cy="12" r="3" />
+          <line x1="12" y1="2" x2="12" y2="9" />
+          <line x1="12" y1="15" x2="12" y2="22" />
+        </svg>
+      </button>
+      <div class="fab-menu" id="fabMenu">
+        <!-- 子按鈕 1：資訊資產清單 -->
+        <a class="fab-nav-item" id="fabLinkIsmsAsset" href="#" target="_blank">
+          <span class="fab-nav-label">資訊資產清單</span>
+          <span class="fab-nav-btn" style="background: linear-gradient(135deg, #2f6c7f, #1e5568);">
+            <i class="fa-solid fa-list-check"></i>
+          </span>
+        </a>
+        <!-- 子按鈕 2：資產對照管理 -->
+        <a class="fab-nav-item" id="fabLinkIsmsConnect" href="#" target="_blank">
+          <span class="fab-nav-label">資產對照管理</span>
+          <span class="fab-nav-btn" style="background: linear-gradient(135deg, #0891b2, #0e7490);">
+            <i class="fa-solid fa-link"></i>
+          </span>
+        </a>
+        <!-- 子按鈕 3：軟體清冊 -->
+        <a class="fab-nav-item" id="fabLinkSoftware" href="#" target="_blank">
+          <span class="fab-nav-label">軟體清冊</span>
+          <span class="fab-nav-btn" style="background: linear-gradient(135deg, #7c3aed, #6d28d9);">
+            <i class="fa-solid fa-compact-disc"></i>
+          </span>
+        </a>
+        <!-- 子按鈕 4：資產試算表 -->
+        <a class="fab-nav-item" id="fabLinkSheet" href="#" target="_blank">
+          <span class="fab-nav-label">資產試算表</span>
+          <span class="fab-nav-btn" style="background: linear-gradient(135deg, #d97706, #b45309);">
+            <i class="fa-solid fa-table"></i>
+          </span>
+        </a>
+      </div>
+    </div>
+
+    <script>
+    (function() {
+      'use strict';
+
+      // ===== 設定快速導航連結 =====
+      google.script.run
+        .withSuccessHandler(function(urls) {
+          if (urls.ismsAssetUrl)    document.getElementById('fabLinkIsmsAsset').href = urls.ismsAssetUrl;
+          if (urls.ismsConnectUrl)  document.getElementById('fabLinkIsmsConnect').href = urls.ismsConnectUrl;
+          if (urls.softwareListUrl) document.getElementById('fabLinkSoftware').href = urls.softwareListUrl;
+          if (urls.sheetUrl)        document.getElementById('fabLinkSheet').href = urls.sheetUrl;
+        })
+        .withFailureHandler(function() {})
+        .getFabNavigationUrls();
+
+      // ===== FAB 開關 =====
+      var container = document.getElementById('fabContainer');
+      var mainBtn   = document.getElementById('fabMain');
+      var overlay   = document.getElementById('fabOverlay');
+      var isOpen    = false;
+
+      function toggleFab() {
+        isOpen = !isOpen;
+        container.classList.toggle('open', isOpen);
+        overlay.classList.toggle('show', isOpen);
+      }
+      function closeFab() {
+        if (!isOpen) return;
+        isOpen = false;
+        container.classList.remove('open');
+        overlay.classList.remove('show');
+      }
+
+      overlay.addEventListener('click', closeFab);
+
+      // ===== 拖曳功能 =====
+      var isDragging = false;
+      var hasMoved   = false;
+      var startX, startY, origX, origY;
+      var DRAG_THRESHOLD = 6;
+
+      function onPointerDown(e) {
+        if (e.target.closest('.fab-menu')) return;
+        e.preventDefault();
+        var t = e.touches ? e.touches[0] : e;
+        startX = t.clientX;
+        startY = t.clientY;
+        origX = container.offsetLeft || (window.innerWidth - container.offsetWidth - 32);
+        origY = container.offsetTop  || (window.innerHeight - container.offsetHeight - 32);
+        container.style.left   = origX + 'px';
+        container.style.top    = origY + 'px';
+        container.style.right  = 'auto';
+        container.style.bottom = 'auto';
+        isDragging = true;
+        hasMoved   = false;
+      }
+
+      function onPointerMove(e) {
+        if (!isDragging) return;
+        var t = e.touches ? e.touches[0] : e;
+        var dx = t.clientX - startX;
+        var dy = t.clientY - startY;
+        if (!hasMoved && Math.abs(dx) < DRAG_THRESHOLD && Math.abs(dy) < DRAG_THRESHOLD) return;
+        hasMoved = true;
+        mainBtn.classList.add('dragging');
+        closeFab();
+
+        var newX = origX + dx;
+        var newY = origY + dy;
+        var maxX = window.innerWidth  - container.offsetWidth;
+        var maxY = window.innerHeight - container.offsetHeight;
+        newX = Math.max(0, Math.min(newX, maxX));
+        newY = Math.max(0, Math.min(newY, maxY));
+
+        container.style.left = newX + 'px';
+        container.style.top  = newY + 'px';
+      }
+
+      function onPointerUp() {
+        if (!isDragging) return;
+        isDragging = false;
+        mainBtn.classList.remove('dragging');
+        if (!hasMoved) {
+          toggleFab();
+        }
+      }
+
+      // 桌面
+      mainBtn.addEventListener('mousedown', onPointerDown);
+      document.addEventListener('mousemove', onPointerMove);
+      document.addEventListener('mouseup',   onPointerUp);
+      // 行動裝置
+      mainBtn.addEventListener('touchstart', onPointerDown, { passive: false });
+      document.addEventListener('touchmove',  onPointerMove, { passive: false });
+      document.addEventListener('touchend',   onPointerUp);
+
+      // 子按鈕點擊後自動收合
+      document.querySelectorAll('.fab-nav-item').forEach(function(link) {
+        link.addEventListener('click', function() {
+          setTimeout(closeFab, 150);
+        });
+      });
+    })();
+    </script>
 </body>
 </html>

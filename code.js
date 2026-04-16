@@ -1092,6 +1092,19 @@ function getAppUrl() {
 }
 
 /**
+ * 取得浮動按鈕導航連結（供 userstate.html FAB 使用）
+ */
+function getFabNavigationUrls() {
+  var ismsBaseUrl = 'https://script.google.com/a/macros/as.edu.tw/s/AKfycbxkg0u0OFBLCft2gHstJ3eVE94INrZ1G59Ek0MIs_fmdLG00N9YoHyH9EmbW4geifg7/exec';
+  return {
+    ismsAssetUrl: ismsBaseUrl,
+    ismsConnectUrl: ismsBaseUrl + '?page=connect',
+    softwareListUrl: ismsBaseUrl + '?page=softwarelist',
+    sheetUrl: 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID
+  };
+}
+
+/**
  * [供 Index.html 呼叫] 獲取駐站與電腦的二級下拉選單資料 (修正並清理版)
  */
 // =================================================================
