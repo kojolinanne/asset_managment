@@ -15705,7 +15705,7 @@
         position: fixed;
         z-index: 9999;
         bottom: 32px;
-        right: 32px;
+        left: 32px;
         display: flex;
         flex-direction: column-reverse;
         align-items: center;
@@ -15982,7 +15982,7 @@
         var t = e.touches ? e.touches[0] : e;
         startX = t.clientX;
         startY = t.clientY;
-        origX = container.offsetLeft || (window.innerWidth - container.offsetWidth - 32);
+        origX = container.offsetLeft || 32;
         origY = container.offsetTop  || (window.innerHeight - container.offsetHeight - 32);
         container.style.left   = origX + 'px';
         container.style.top    = origY + 'px';
