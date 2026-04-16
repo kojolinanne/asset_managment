@@ -1079,7 +1079,7 @@ function getFabNavigationUrls() {
   var baseUrl = ScriptApp.getService().getUrl();
   return {
     connectUrl: baseUrl + '?page=connect',
-    mainAppUrl: 'https://docs.google.com/spreadsheets/d/' + CONFIG.ASSET_SPREADSHEET_ID,
+    mainAppUrl: 'https://script.google.com/a/macros/as.edu.tw/s/AKfycbxkg0u0OFBLCft2gHstJ3eVE94INrZ1G59Ek0MIs_fmdLG00N9YoHyH9EmbW4geifg7/exec',
     sheetUrl: 'https://docs.google.com/spreadsheets/d/' + CONFIG.ISMS_SPREADSHEET_ID
   };
 }

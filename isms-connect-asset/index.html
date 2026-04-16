@@ -2112,20 +2112,36 @@
 
     /* 主按鈕 */
     .fab-main {
-      width: 56px;
-      height: 56px;
+      width: 58px;
+      height: 58px;
       border-radius: 50%;
       border: none;
-      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      background: linear-gradient(135deg, #2563eb 0%, #7c3aed 50%, #2563eb 100%);
+      background-size: 200% 200%;
       color: #fff;
-      font-size: 22px;
+      font-size: 20px;
       cursor: grab;
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 6px 24px rgba(37, 99, 235, 0.4);
+      box-shadow:
+        0 6px 24px rgba(37, 99, 235, 0.4),
+        0 0 0 0 rgba(124, 58, 237, 0);
       transition: transform 0.25s cubic-bezier(.4,0,.2,1), box-shadow 0.25s;
       position: relative;
+      animation:
+        fabPulse 3s ease-in-out infinite,
+        fabGradient 4s ease infinite;
+    }
+    /* 外圈脈動光環 */
+    .fab-main::before {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      border: 2px solid rgba(124, 58, 237, 0.35);
+      animation: fabRingPulse 3s ease-in-out infinite;
+      pointer-events: none;
     }
     .fab-main:hover {
       box-shadow: 0 8px 30px rgba(37, 99, 235, 0.55);
@@ -2133,18 +2149,60 @@
     .fab-main:active {
       cursor: grabbing;
     }
+
+    /* 閒置呼吸脈動 */
+    @keyframes fabPulse {
+      0%, 100% { transform: scale(1); }
+      50%      { transform: scale(1.06); }
+    }
+    /* 漸層緩慢流動 */
+    @keyframes fabGradient {
+      0%, 100% { background-position: 0% 50%; }
+      50%      { background-position: 100% 50%; }
+    }
+    /* 外圈光環擴散 */
+    @keyframes fabRingPulse {
+      0%, 100% { opacity: 0.5; transform: scale(1); }
+      50%      { opacity: 0; transform: scale(1.25); }
+    }
+
+    /* 圖示本身：閒置緩慢旋轉 */
     .fab-main .fab-icon {
-      transition: transform 0.3s cubic-bezier(.4,0,.2,1);
       pointer-events: none;
+      transition: transform 0.35s cubic-bezier(.4,0,.2,1);
+      animation: fabIconSpin 8s linear infinite;
+    }
+    @keyframes fabIconSpin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    /* 展開時：停止所有閒置動畫，圖示轉為 × */
+    .fab-container.open .fab-main {
+      animation: none;
+    }
+    .fab-container.open .fab-main::before {
+      animation: none;
+      opacity: 0;
     }
     .fab-container.open .fab-main .fab-icon {
-      transform: rotate(135deg);
+      animation: none;
+      transform: rotate(180deg);
     }
-    /* 拖曳視覺提示 */
+
+    /* 拖曳視覺提示 — 也停止閒置動畫 */
     .fab-main.dragging {
       opacity: 0.85;
       box-shadow: 0 10px 40px rgba(37, 99, 235, 0.5);
       transform: scale(1.08);
+      animation: none;
+    }
+    .fab-main.dragging::before {
+      animation: none;
+      opacity: 0;
+    }
+    .fab-main.dragging .fab-icon {
+      animation: none;
     }
 
     /* 子按鈕容器 */
@@ -2233,7 +2291,13 @@
   <!-- FAB 按鈕群組 -->
   <div class="fab-container" id="fabContainer">
     <button class="fab-main" id="fabMain" title="快速導航">
-      <i class="fa-solid fa-plus fab-icon"></i>
+      <svg class="fab-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <!-- 六角導航羅盤 -->
+        <polygon points="12,2 20,7 20,17 12,22 4,17 4,7" />
+        <circle cx="12" cy="12" r="3" />
+        <line x1="12" y1="2" x2="12" y2="9" />
+        <line x1="12" y1="15" x2="12" y2="22" />
+      </svg>
     </button>
     <div class="fab-menu" id="fabMenu">
       <!-- 子按鈕 1：資產對照管理（connect.html） -->
