@@ -246,6 +246,9 @@
             padding: 24px;
             box-shadow: 0 24px 60px rgba(0,0,0,0.25);
         }
+        #previewModal .modal-content {
+            max-width: 620px;
+        }
         .modal-content h3 { margin: 0 0 12px 0; font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
 
         .progress-bar-wrap {
@@ -341,21 +344,24 @@
         .row-barcode svg { height: 100%; width: 100%; display: block; }
         .row-small-text { font-size: 6pt; text-align: center; margin-top: 0.4mm; font-family: 'Arial', sans-serif; }
 
-        /* 預覽用：放大顯示，padding 需比 scale 倍率留足夠空間 */
+        /* 預覽用：放大顯示
+           標籤 60.06×30.03mm，scale(2.2) 後視覺尺寸約 500×250px
+           transform 不佔 layout 空間，需用 wrapper 撐高 */
         .preview-wrap {
             background: #f1f5f9;
             border: 1px solid #e2e8f0;
-            padding: 40px 32px;
             border-radius: 12px;
             display: flex;
             justify-content: center;
             align-items: center;
-            overflow: auto;
-            min-height: 160px;
+            overflow: hidden;
+            /* 視覺高度 ≈ 30.03mm × 2.2 × 3.78px/mm ≈ 250px，加上留白 */
+            height: 290px;
         }
         .preview-wrap .preview-scale {
             transform: scale(2.2);
-            transform-origin: center;
+            transform-origin: center center;
+            flex-shrink: 0;
         }
 
         /* loading skeleton */
