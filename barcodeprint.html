@@ -282,7 +282,7 @@
             contain: layout paint style;
         }
 
-        #label-template {
+        #label-template, .label-tpl {
             width: 60.06mm;
             height: 30.03mm;
             background-color: #ffffff;
@@ -341,18 +341,20 @@
         .row-barcode svg { height: 100%; width: 100%; display: block; }
         .row-small-text { font-size: 6pt; text-align: center; margin-top: 0.4mm; font-family: 'Arial', sans-serif; }
 
-        /* 預覽用：放大顯示 */
+        /* 預覽用：放大顯示，padding 需比 scale 倍率留足夠空間 */
         .preview-wrap {
-            background: #f8fafc;
-            padding: 24px;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            padding: 40px 32px;
             border-radius: 12px;
             display: flex;
             justify-content: center;
             align-items: center;
             overflow: auto;
+            min-height: 160px;
         }
         .preview-wrap .preview-scale {
-            transform: scale(1.8);
+            transform: scale(2.2);
             transform-origin: center;
         }
 
@@ -525,7 +527,7 @@
 
 <!-- ===== 隱藏的標籤渲染區：html2canvas 會擷取此區塊產出圖檔 ===== -->
 <div class="label-capture-stage" aria-hidden="true">
-    <div id="label-template">
+    <div id="label-template" class="label-tpl">
         <div class="row-header">
             <div>中央研究院</div>
             <div id="lbl-prop-no"></div>
@@ -1010,18 +1012,17 @@
     // =========================================================
     function openPreview() {
         if (state.selected.size === 0) return;
-        // 取第一筆已選的（但從 filtered 陣列順序挑，更符合使用者直覺）
         const firstSelected = state.filtered.find(a => state.selected.has(String(a.assetId)))
             || state.assets.find(a => state.selected.has(String(a.assetId)));
         if (!firstSelected) return;
 
         fillLabelTemplate(firstSelected);
 
-        // 將 label-template 的 HTML 複製到 preview 容器
+        // clone label-template，保留 class（.label-tpl）以繼承 CSS 樣式
         const clone = document.getElementById('label-template').cloneNode(true);
-        // 清除原 id 避免衝突
-        clone.id = 'preview-label-inner';
+        clone.removeAttribute('id');
         clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+
         const wrap = $('preview-label');
         wrap.innerHTML = '';
         wrap.appendChild(clone);
