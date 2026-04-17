@@ -268,14 +268,18 @@
            標籤模板 —— 嚴格依照 example/printbarcode_exmple.html
            尺寸 60.06 x 30.03 mm，不得更動
            ======================================================== */
-        /* html2canvas 擷取用的隱藏容器：以「只橫向位移」取代 position:fixed，
-           避免瀏覽器在 fixed + 大幅負位移時的 font/layout 計算異常。 */
-        .label-offscreen {
-            position: absolute;
-            top: 0;
-            left: -100000px;
+        /* html2canvas 擷取用的隱藏容器：避免使用極端負座標，降低 CJK 文字光柵化異常。 */
+        .label-capture-stage {
+            position: fixed;
+            top: 8px;
+            left: 8px;
+            width: 60.06mm;
+            height: 30.03mm;
+            overflow: hidden;
             pointer-events: none;
+            visibility: hidden;
             z-index: -1;
+            contain: layout paint style;
         }
 
         #label-template {
@@ -283,7 +287,7 @@
             height: 30.03mm;
             background-color: #ffffff;
             color: #000000;
-            font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+            font-family: 'Noto Sans TC', 'Microsoft JhengHei', 'PingFang TC', sans-serif;
             padding: 1mm 2mm 0.8mm 2mm;
             box-sizing: border-box;
             display: flex;
@@ -291,6 +295,9 @@
             line-height: 1;
             transform-origin: top left;
             overflow: hidden;
+            visibility: visible;
+            text-rendering: geometricPrecision;
+            -webkit-font-smoothing: antialiased;
         }
         /* 文字列：固定順序、不可被壓縮、過長以 ellipsis 收尾 */
         .row-header, .row-name, .row-alias, .row-info, .row-small-text { flex-shrink: 0; }
@@ -517,7 +524,7 @@
 </div>
 
 <!-- ===== 隱藏的標籤渲染區：html2canvas 會擷取此區塊產出圖檔 ===== -->
-<div class="label-offscreen">
+<div class="label-capture-stage" aria-hidden="true">
     <div id="label-template">
         <div class="row-header">
             <div>中央研究院</div>
@@ -582,7 +589,7 @@
             .replace(/'/g, '&#39;');
     }
 
-    // ISO / Date → 民國年 YYY/MM/DD（空值回空字串）
+    // ISO / Date → 民國年 YYY/MM/DD（舊資料 fallback 用）
     function toRocDate(value) {
         if (!value) return '';
         const d = (value instanceof Date) ? value : new Date(value);
@@ -610,6 +617,13 @@
 
     function getAliasDisplay(asset) {
         return asset.assetAlias || asset.productSerial || '';
+    }
+
+    function getPurchaseDateDisplay(asset) {
+        if (asset && asset.purchaseDateDisplay) {
+            return String(asset.purchaseDateDisplay);
+        }
+        return toRocDate(asset ? asset.purchaseDate : '');
     }
 
     function buildSearchText(a) {
@@ -774,7 +788,7 @@
                     <td class="cell-clip" title="${escapeHtml(getAliasDisplay(a))}">${escapeHtml(getAliasDisplay(a))}</td>
                     <td>${escapeHtml(a.leader || '')}</td>
                     <td class="cell-clip" title="${escapeHtml(a.location || '')}">${escapeHtml(a.location || '')}</td>
-                    <td class="cell-mono">${escapeHtml(toRocDate(a.purchaseDate))}</td>
+                    <td class="cell-mono">${escapeHtml(getPurchaseDateDisplay(a))}</td>
                     <td>${escapeHtml(formatUseLife(a.useLife))}</td>
                     <td><span class="badge badge-status">${escapeHtml(a.status || '-')}</span></td>
                     <td>
@@ -904,7 +918,7 @@
         $('lbl-alias').textContent = getAliasDisplay(asset);
         $('lbl-loc').textContent = asset.location || '';
         $('lbl-custodian').textContent = asset.leader || '';
-        $('lbl-date').textContent = toRocDate(asset.purchaseDate);
+        $('lbl-date').textContent = getPurchaseDateDisplay(asset);
 
         // 條碼：CODE128，與範例完全一致
         try {
@@ -962,11 +976,13 @@
                 fillLabelTemplate(a);
                 await waitForPaint();
 
-                const canvas = await html2canvas(document.getElementById('label-template'), {
+                const labelNode = document.getElementById('label-template');
+                const canvas = await html2canvas(labelNode, {
                     scale: 4,
                     useCORS: true,
                     backgroundColor: '#ffffff',
-                    logging: false
+                    logging: false,
+                    removeContainer: true
                 });
                 const imgData = canvas.toDataURL('image/png');
                 if (i > 0) pdf.addPage([60.06, 30.03], 'landscape');

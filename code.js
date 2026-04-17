@@ -862,6 +862,77 @@ function doGet(e) {
   html.addMetaTag('viewport', 'width=device-width, initial-scale=1.0');
   return html;
 }
+
+function parseUserStateDateValue_(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (Object.prototype.toString.call(value) === '[object Date]') {
+    const time = value.getTime();
+    return Number.isNaN(time) ? null : new Date(time);
+  }
+
+  const raw = String(value).trim();
+  if (!raw) {
+    return null;
+  }
+
+  const firstLine = raw
+    .split('\n')
+    .map(line => line.trim())
+    .find(line => line) || raw;
+
+  const dateMatch = firstLine.match(/(\d{1,4})\s*[\/\-\.]\s*(\d{1,2})\s*[\/\-\.]\s*(\d{1,2})/);
+  if (dateMatch) {
+    let year = parseInt(dateMatch[1], 10);
+    const month = parseInt(dateMatch[2], 10);
+    const day = parseInt(dateMatch[3], 10);
+
+    if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
+      if (year < 1911) {
+        year += 1911;
+      }
+
+      const parsed = new Date(year, month - 1, day);
+      if (!Number.isNaN(parsed.getTime()) &&
+          parsed.getFullYear() === year &&
+          parsed.getMonth() === month - 1 &&
+          parsed.getDate() === day) {
+        return parsed;
+      }
+    }
+  }
+
+  const fallback = new Date(firstLine);
+  if (!Number.isNaN(fallback.getTime())) {
+    return fallback;
+  }
+
+  return null;
+}
+
+function formatUserStateDateDisplay_(value) {
+  if (!value) {
+    return '';
+  }
+
+  const parsed = parseUserStateDateValue_(value);
+  if (parsed) {
+    return Utilities.formatDate(parsed, Session.getScriptTimeZone(), 'yyyy/MM/dd');
+  }
+
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  return raw
+    .split('\n')
+    .map(line => line.trim())
+    .find(line => line) || raw;
+}
+
 function getUserStateData(forceUserScope) {
   const currentUserEmail = Session.getActiveUser().getEmail();
   const normalizedCurrentEmail = String(currentUserEmail).toLowerCase();
@@ -948,6 +1019,7 @@ function getUserStateData(forceUserScope) {
       sourceSheet: asset.sourceSheet || '',
       useLife: asset.useLife || '',
       purchaseDate: asset.purchaseDate ? (asset.purchaseDate instanceof Date ? asset.purchaseDate.toISOString() : String(asset.purchaseDate)) : '',
+      purchaseDateDisplay: formatUserStateDateDisplay_(asset.purchaseDate),
       isItAsset: asset.isItAsset || '',
       isIsoScope: asset.isIsoScope || '',
       ismsAssetId: String(mapping.ismsAssetId || asset.ismsAssetId || '')
