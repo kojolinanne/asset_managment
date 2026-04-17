@@ -268,11 +268,14 @@
            標籤模板 —— 嚴格依照 example/printbarcode_exmple.html
            尺寸 60.06 x 30.03 mm，不得更動
            ======================================================== */
+        /* html2canvas 擷取用的隱藏容器：以「只橫向位移」取代 position:fixed，
+           避免瀏覽器在 fixed + 大幅負位移時的 font/layout 計算異常。 */
         .label-offscreen {
-            position: fixed;
-            top: -9999px;
-            left: -9999px;
+            position: absolute;
+            top: 0;
+            left: -100000px;
             pointer-events: none;
+            z-index: -1;
         }
 
         #label-template {
@@ -281,36 +284,55 @@
             background-color: #ffffff;
             color: #000000;
             font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif;
-            padding: 1.5mm 2mm 1mm 2mm;
+            padding: 1mm 2mm 0.8mm 2mm;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
             line-height: 1;
             transform-origin: top left;
+            overflow: hidden;
         }
-        .row-header { display: flex; justify-content: space-between; font-size: 7.5pt; font-weight: bold; }
-        .row-name   { font-size: 7.5pt; font-weight: bold; margin-top: 0.2mm; }
-        .row-alias  { font-size: 8pt; margin-top: 0.2mm; }
+        /* 文字列：固定順序、不可被壓縮、過長以 ellipsis 收尾 */
+        .row-header, .row-name, .row-alias, .row-info, .row-small-text { flex-shrink: 0; }
+
+        .row-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-size: 7.5pt;
+            font-weight: bold;
+            gap: 1mm;
+        }
+        .row-header > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .row-header > div:nth-child(1) { flex: 0 0 auto; }
+        .row-header > div:nth-child(2) { flex: 1 1 auto; text-align: center; }
+        .row-header > div:nth-child(3) { flex: 0 0 auto; }
+
+        .row-name   { font-size: 7.5pt; font-weight: bold; margin-top: 0.2mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .row-alias  { font-size: 8pt;   margin-top: 0.2mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .row-info   {
             display: grid;
             grid-template-columns: 48% 27% 25%;
             font-size: 7pt;
             margin-top: 0.2mm;
         }
-        .info-loc       { text-align: left; white-space: nowrap; overflow: hidden; }
-        .info-custodian { text-align: right; padding-right: 2mm; white-space: nowrap; overflow: hidden; }
-        .info-date      { text-align: right; white-space: nowrap; overflow: hidden; }
+        .info-loc       { text-align: left;  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .info-custodian { text-align: right; padding-right: 2mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .info-date      { text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* 條碼：固定高度（約 10mm），避免 flex-grow 吃掉文字列的空間 */
         .row-barcode {
             display: flex;
             justify-content: center;
             align-items: stretch;
-            margin-top: 0.5mm;
+            margin-top: 0.4mm;
             width: 100%;
-            flex-grow: 1;
+            height: 10mm;
+            flex: 0 0 10mm;
             overflow: hidden;
         }
-        .row-barcode svg { height: 100%; width: 100%; }
-        .row-small-text { font-size: 6pt; text-align: center; margin-top: 0.5mm; font-family: 'Arial', sans-serif; }
+        .row-barcode svg { height: 100%; width: 100%; display: block; }
+        .row-small-text { font-size: 6pt; text-align: center; margin-top: 0.4mm; font-family: 'Arial', sans-serif; }
 
         /* 預覽用：放大顯示 */
         .preview-wrap {
@@ -593,7 +615,7 @@
     function buildSearchText(a) {
         return [
             a.assetId, a.assetName, a.assetAlias, a.productSerial,
-            a.leaderName, a.userName, a.location, a.assetStatus, a.assetCategory, a.modelBrand
+            a.leader, a.userName, a.location, a.status, a.category, a.modelBrand
         ].filter(Boolean).join(' ').toLowerCase();
     }
 
@@ -677,10 +699,10 @@
     function populateFilters() {
         const assets = state.assets;
         const sysOpts  = uniqSorted(assets.map(a => systemLabel(a)));
-        const statOpts = uniqSorted(assets.map(a => a.assetStatus));
+        const statOpts = uniqSorted(assets.map(a => a.status));
         const locOpts  = uniqSorted(assets.map(a => a.location));
-        const ldrOpts  = uniqSorted(assets.map(a => a.leaderName));
-        const catOpts  = uniqSorted(assets.map(a => a.assetCategory));
+        const ldrOpts  = uniqSorted(assets.map(a => a.leader));
+        const catOpts  = uniqSorted(assets.map(a => a.category));
 
         const fill = (id, opts) => {
             const sel = $(id);
@@ -703,10 +725,10 @@
         state.filtered = state.assets.filter(a => {
             if (q && (a.__search || '').indexOf(q) === -1) return false;
             if (f.system   && systemLabel(a) !== f.system) return false;
-            if (f.status   && String(a.assetStatus   || '') !== f.status) return false;
-            if (f.location && String(a.location      || '') !== f.location) return false;
-            if (f.leader   && String(a.leaderName    || '') !== f.leader) return false;
-            if (f.category && String(a.assetCategory || '') !== f.category) return false;
+            if (f.status   && String(a.status    || '') !== f.status) return false;
+            if (f.location && String(a.location  || '') !== f.location) return false;
+            if (f.leader   && String(a.leader    || '') !== f.leader) return false;
+            if (f.category && String(a.category  || '') !== f.category) return false;
             return true;
         });
 
@@ -750,11 +772,11 @@
                     <td><span class="badge ${sysClass}">${escapeHtml(sysLabel)}</span></td>
                     <td class="cell-clip" title="${escapeHtml(a.assetName || '')}">${escapeHtml(a.assetName || '')}</td>
                     <td class="cell-clip" title="${escapeHtml(getAliasDisplay(a))}">${escapeHtml(getAliasDisplay(a))}</td>
-                    <td>${escapeHtml(a.leaderName || '')}</td>
+                    <td>${escapeHtml(a.leader || '')}</td>
                     <td class="cell-clip" title="${escapeHtml(a.location || '')}">${escapeHtml(a.location || '')}</td>
                     <td class="cell-mono">${escapeHtml(toRocDate(a.purchaseDate))}</td>
                     <td>${escapeHtml(formatUseLife(a.useLife))}</td>
-                    <td><span class="badge badge-status">${escapeHtml(a.assetStatus || '-')}</span></td>
+                    <td><span class="badge badge-status">${escapeHtml(a.status || '-')}</span></td>
                     <td>
                         <button class="btn btn-ghost btn-sm print-one-btn" title="單獨列印此標籤">
                             <i class="fa-solid fa-print"></i>
@@ -881,7 +903,7 @@
         $('lbl-name').textContent = asset.assetName || '';
         $('lbl-alias').textContent = getAliasDisplay(asset);
         $('lbl-loc').textContent = asset.location || '';
-        $('lbl-custodian').textContent = asset.leaderName || '';
+        $('lbl-custodian').textContent = asset.leader || '';
         $('lbl-date').textContent = toRocDate(asset.purchaseDate);
 
         // 條碼：CODE128，與範例完全一致
@@ -916,7 +938,17 @@
         const progressText = $('progressText');
         progressBar.style.width = '0%';
 
+        // 等 DOM paint 完成再截圖（requestAnimationFrame × 2 保險）
+        const waitForPaint = () => new Promise(resolve => {
+            requestAnimationFrame(() => requestAnimationFrame(resolve));
+        });
+
         try {
+            // 等字型載入完成，避免字體 fallback 造成尺寸偏差
+            if (document.fonts && document.fonts.ready) {
+                try { await document.fonts.ready; } catch (e) { /* ignore */ }
+            }
+
             const { jsPDF } = window.jspdf;
             const pdf = new jsPDF({
                 orientation: 'landscape',
@@ -928,14 +960,13 @@
                 const a = assets[i];
                 progressText.textContent = `產生中 ${i + 1} / ${assets.length}：${a.assetId || ''}`;
                 fillLabelTemplate(a);
-
-                // 讓 DOM 有時間繪製
-                await new Promise(r => setTimeout(r, 30));
+                await waitForPaint();
 
                 const canvas = await html2canvas(document.getElementById('label-template'), {
                     scale: 4,
                     useCORS: true,
-                    backgroundColor: '#ffffff'
+                    backgroundColor: '#ffffff',
+                    logging: false
                 });
                 const imgData = canvas.toDataURL('image/png');
                 if (i > 0) pdf.addPage([60.06, 30.03], 'landscape');

@@ -938,16 +938,18 @@ function getUserStateData(forceUserScope) {
       productSerial: asset.productSerial || '',
       modelBrand: asset.modelBrand || '',
       leader: asset.leaderName,
-      leaderEmail: asset.leaderEmail, // ✨ Add leaderEmail
+      leaderEmail: asset.leaderEmail,
       userEmail: asset.userEmail || '',
       location: asset.location,
       status: asset.assetStatus,
       category: asset.assetCategory,
       group: groupName,
-      userName: asset.userName || '無', // 使用者名稱，物品總表顯示「無」
+      userName: asset.userName || '無',
       sourceSheet: asset.sourceSheet || '',
-      isItAsset: asset.isItAsset || '',  // ✨ ISMS：是否為資訊資產（X欄）
-      isIsoScope: asset.isIsoScope || '', // ✨ ISMS：是否在ISO驗證範圍內（Z欄）
+      useLife: asset.useLife || '',
+      purchaseDate: asset.purchaseDate ? (asset.purchaseDate instanceof Date ? asset.purchaseDate.toISOString() : String(asset.purchaseDate)) : '',
+      isItAsset: asset.isItAsset || '',
+      isIsoScope: asset.isIsoScope || '',
       ismsAssetId: String(mapping.ismsAssetId || asset.ismsAssetId || '')
     };
   });
