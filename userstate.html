@@ -15302,6 +15302,19 @@
                                     </button>
                                 )}
 
+                                {/* 列印條碼按鈕（所有使用者可見） */}
+                                <button
+                                    onClick={() => {
+                                        const base = window.location.href.split('?')[0];
+                                        window.open(base + '?page=barcodeprint', '_blank');
+                                    }}
+                                    className="hero-btn hero-btn--ghost"
+                                    title="開啟列印條碼頁面"
+                                >
+                                    <i className="fa-solid fa-barcode text-emerald-600"></i>
+                                    <span className="hidden sm:inline">列印條碼</span>
+                                </button>
+
                                 {/* 操作說明書按鈕 */}
                                 <button
                                     onClick={() => window.open('https://drive.google.com/file/d/YOUR_PDF_FILE_ID/view', '_blank')}
@@ -15932,6 +15945,13 @@
             <i class="fa-solid fa-table"></i>
           </span>
         </a>
+        <!-- 子按鈕 5：列印條碼 -->
+        <a class="fab-nav-item" id="fabLinkBarcodePrint" href="#" target="_blank">
+          <span class="fab-nav-label">列印條碼</span>
+          <span class="fab-nav-btn" style="background: linear-gradient(135deg, #059669, #047857);">
+            <i class="fa-solid fa-barcode"></i>
+          </span>
+        </a>
       </div>
     </div>
 
@@ -15947,6 +15967,7 @@
           if (urls.ismsConnectUrl)  document.getElementById('fabLinkIsmsConnect').href = urls.ismsConnectUrl;
           if (urls.softwareListUrl) document.getElementById('fabLinkSoftware').href = urls.softwareListUrl;
           if (urls.sheetUrl)        document.getElementById('fabLinkSheet').href = urls.sheetUrl;
+          if (urls.barcodePrintUrl) document.getElementById('fabLinkBarcodePrint').href = urls.barcodePrintUrl;
           document.getElementById('fabContainer').style.display = '';
         })
         .withFailureHandler(function() {})

@@ -845,6 +845,11 @@ function doGet(e) {
   let title;
 
   switch (page) {
+    case 'barcodeprint':
+      // 列印條碼標籤頁面
+      template = HtmlService.createTemplateFromFile('barcodeprint');
+      title = "列印條碼";
+      break;
     default:
       // 預設顯示入口網站
       template = HtmlService.createTemplateFromFile('userstate');
@@ -1096,12 +1101,14 @@ function getAppUrl() {
  */
 function getFabNavigationUrls() {
   var ismsBaseUrl = 'https://script.google.com/a/macros/as.edu.tw/s/AKfycbxkg0u0OFBLCft2gHstJ3eVE94INrZ1G59Ek0MIs_fmdLG00N9YoHyH9EmbW4geifg7/exec';
+  var webAppUrl = ScriptApp.getService().getUrl();
   return {
     isAdmin: checkAdminPermissions(),
     ismsAssetUrl: ismsBaseUrl,
     ismsConnectUrl: ismsBaseUrl + '?page=connect',
     softwareListUrl: ismsBaseUrl + '?page=softwarelist',
-    sheetUrl: 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID
+    sheetUrl: 'https://docs.google.com/spreadsheets/d/' + SPREADSHEET_ID,
+    barcodePrintUrl: webAppUrl + '?page=barcodeprint'
   };
 }
 

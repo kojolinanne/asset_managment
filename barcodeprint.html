@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>列印條碼 | 財產管理</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- 條碼與 PDF 輸出 -->
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        :root {
+            --ink-900: #0f172a;
+            --ink-700: #334155;
+            --ink-500: #64748b;
+            --surface: #ffffff;
+            --surface-muted: #f8fafc;
+            --accent-500: #2f6c7f;
+            --accent-400: #3d8c9c;
+            --accent-300: #7dd3c7;
+            --warm-200: #f7d7b5;
+            --shadow-soft: 0 24px 60px rgba(15, 23, 42, 0.12);
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: "Noto Sans TC", "Noto Sans", sans-serif;
+            color: var(--ink-900);
+            background:
+                radial-gradient(circle at 12% 12%, rgba(125, 211, 199, 0.25), transparent 55%),
+                radial-gradient(circle at 88% 0%, rgba(247, 215, 181, 0.32), transparent 48%),
+                linear-gradient(180deg, #f8fafc 0%, #eef2f7 60%, #ecf4f2 100%);
+            min-height: 100vh;
+        }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .page-shell { padding: 28px 24px 120px; max-width: 1400px; margin: 0 auto; }
+
+        .hero {
+            background: linear-gradient(135deg, rgba(255,255,255,0.92), rgba(244,250,250,0.92));
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            border-radius: 24px;
+            padding: 24px 28px;
+            box-shadow: var(--shadow-soft);
+            backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 24px;
+            flex-wrap: wrap;
+        }
+        .hero h1 {
+            font-size: 1.6rem;
+            font-weight: 700;
+            margin: 0 0 6px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .hero .subtitle { color: var(--ink-500); font-size: 0.95rem; margin: 0; }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 9px 16px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.15s;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-500), #1e5568);
+            color: #fff;
+        }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 14px rgba(47, 108, 127, 0.35); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn-ghost {
+            background: #fff;
+            color: var(--ink-700);
+            border-color: #cbd5e1;
+        }
+        .btn-ghost:hover { background: #f8fafc; border-color: #94a3b8; }
+        .btn-sm { padding: 5px 10px; font-size: 0.8rem; border-radius: 8px; }
+
+        .card {
+            background: #fff;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            border-radius: 20px;
+            box-shadow: 0 12px 32px rgba(15, 23, 42, 0.06);
+            overflow: hidden;
+        }
+
+        .filter-bar { padding: 18px 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+        .filter-bar label { display: block; font-size: 0.78rem; font-weight: 500; color: var(--ink-500); margin-bottom: 4px; }
+        .filter-bar input, .filter-bar select {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            background: #fff;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .filter-bar input:focus, .filter-bar select:focus { border-color: var(--accent-400); box-shadow: 0 0 0 3px rgba(61,140,156,0.15); }
+
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        thead th {
+            text-align: left;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--ink-500);
+            background: var(--surface-muted);
+            padding: 10px 12px;
+            border-bottom: 1px solid #e2e8f0;
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+        tbody td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.88rem;
+            vertical-align: middle;
+        }
+        tbody tr { transition: background-color 0.1s; }
+        tbody tr:hover { background: #f8fafc; }
+        tbody tr.selected { background: #eff9f7; }
+        .cell-mono { font-family: "SFMono-Regular", "Menlo", "Consolas", monospace; color: var(--ink-700); }
+        .cell-clip { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 500;
+            line-height: 1.4;
+        }
+        .badge-property { background: #ecfdf5; color: #047857; }
+        .badge-item     { background: #eff6ff; color: #1d4ed8; }
+        .badge-status   { background: #f1f5f9; color: #475569; }
+
+        .chip {
+            display: inline-block;
+            padding: 3px 10px;
+            background: rgba(47, 108, 127, 0.12);
+            color: var(--accent-500);
+            border-radius: 999px;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+
+        .list-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            border-top: 1px solid #f1f5f9;
+            font-size: 0.85rem;
+            color: var(--ink-500);
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .pager { display: inline-flex; gap: 4px; }
+        .pager button {
+            background: #fff;
+            border: 1px solid #cbd5e1;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            color: var(--ink-700);
+        }
+        .pager button:hover:not(:disabled) { background: #f1f5f9; }
+        .pager button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .pager .current { background: var(--accent-500); color: #fff; border-color: var(--accent-500); }
+
+        .action-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 40;
+            padding: 12px 24px;
+            background: rgba(255, 255, 255, 0.98);
+            border-top: 1px solid rgba(148, 163, 184, 0.4);
+            box-shadow: 0 -6px 24px rgba(15, 23, 42, 0.08);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            transform: translateY(110%);
+            transition: transform 0.25s ease;
+        }
+        .action-bar.visible { transform: translateY(0); }
+        .action-bar .count-badge {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--accent-500);
+        }
+        .action-bar .count-badge .num {
+            font-size: 1.3rem;
+            padding: 0 4px;
+        }
+
+        /* Modal */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            padding: 20px;
+        }
+        .modal-backdrop.visible { display: flex; }
+        .modal-content {
+            background: #fff;
+            border-radius: 20px;
+            max-width: 540px;
+            width: 100%;
+            padding: 24px;
+            box-shadow: 0 24px 60px rgba(0,0,0,0.25);
+        }
+        .modal-content h3 { margin: 0 0 12px 0; font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+
+        .progress-bar-wrap {
+            height: 10px;
+            background: #e2e8f0;
+            border-radius: 999px;
+            overflow: hidden;
+            margin: 12px 0 8px;
+        }
+        .progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent-400), var(--accent-500)); transition: width 0.2s; width: 0%; }
+
+        .empty-state {
+            padding: 80px 20px;
+            text-align: center;
+            color: var(--ink-500);
+        }
+        .empty-state i { font-size: 2.4rem; margin-bottom: 10px; color: #cbd5e1; }
+
+        /* ========================================================
+           標籤模板 —— 嚴格依照 example/printbarcode_exmple.html
+           尺寸 60.06 x 30.03 mm，不得更動
+           ======================================================== */
+        .label-offscreen {
+            position: fixed;
+            top: -9999px;
+            left: -9999px;
+            pointer-events: none;
+        }
+
+        #label-template {
+            width: 60.06mm;
+            height: 30.03mm;
+            background-color: #ffffff;
+            color: #000000;
+            font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+            padding: 1.5mm 2mm 1mm 2mm;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            line-height: 1;
+            transform-origin: top left;
+        }
+        .row-header { display: flex; justify-content: space-between; font-size: 7.5pt; font-weight: bold; }
+        .row-name   { font-size: 7.5pt; font-weight: bold; margin-top: 0.2mm; }
+        .row-alias  { font-size: 8pt; margin-top: 0.2mm; }
+        .row-info   {
+            display: grid;
+            grid-template-columns: 48% 27% 25%;
+            font-size: 7pt;
+            margin-top: 0.2mm;
+        }
+        .info-loc       { text-align: left; white-space: nowrap; overflow: hidden; }
+        .info-custodian { text-align: right; padding-right: 2mm; white-space: nowrap; overflow: hidden; }
+        .info-date      { text-align: right; white-space: nowrap; overflow: hidden; }
+        .row-barcode {
+            display: flex;
+            justify-content: center;
+            align-items: stretch;
+            margin-top: 0.5mm;
+            width: 100%;
+            flex-grow: 1;
+            overflow: hidden;
+        }
+        .row-barcode svg { height: 100%; width: 100%; }
+        .row-small-text { font-size: 6pt; text-align: center; margin-top: 0.5mm; font-family: 'Arial', sans-serif; }
+
+        /* 預覽用：放大顯示 */
+        .preview-wrap {
+            background: #f8fafc;
+            padding: 24px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: auto;
+        }
+        .preview-wrap .preview-scale {
+            transform: scale(1.8);
+            transform-origin: center;
+        }
+
+        /* loading skeleton */
+        .loading-skeleton {
+            padding: 60px 20px;
+            text-align: center;
+            color: var(--ink-500);
+        }
+        .loading-skeleton i { font-size: 1.8rem; color: var(--accent-400); }
+
+        @media (max-width: 640px) {
+            .page-shell { padding: 16px 12px 140px; }
+            .hero { padding: 18px; }
+            .hero h1 { font-size: 1.25rem; }
+            .action-bar { padding: 10px 14px; flex-direction: column; gap: 8px; align-items: stretch; }
+            .action-bar .btn { width: 100%; }
+            .cell-clip { max-width: 140px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="page-shell">
+
+    <!-- Hero / Header -->
+    <div class="hero">
+        <div>
+            <h1>
+                <i class="fa-solid fa-barcode" style="color: var(--accent-500);"></i>
+                列印條碼
+            </h1>
+            <p class="subtitle">勾選資產後產出 60.06 × 30.03 mm 條碼標籤 PDF，支援批次列印。</p>
+        </div>
+        <div style="display:flex; gap: 8px; flex-wrap: wrap;">
+            <span id="viewScopeChip" class="chip" style="display:none;"></span>
+            <button id="scopeToggleBtn" class="btn btn-ghost" style="display:none;" title="切換管理員／個人視角">
+                <i class="fa-solid fa-shuffle"></i>
+                <span id="scopeToggleText">切換視角</span>
+            </button>
+            <a href="?" class="btn btn-ghost">
+                <i class="fa-solid fa-arrow-left"></i>
+                返回資產管理
+            </a>
+        </div>
+    </div>
+
+    <!-- 篩選列 -->
+    <div class="card" style="margin-top: 20px;">
+        <div class="filter-bar">
+            <div style="grid-column: span 2;">
+                <label>全文搜尋</label>
+                <input id="f-search" type="text" placeholder="財產編號／名稱／別名／保管人／位置…">
+            </div>
+            <div>
+                <label>系統類別</label>
+                <select id="f-system"><option value="">全部</option></select>
+            </div>
+            <div>
+                <label>狀態</label>
+                <select id="f-status"><option value="">全部</option></select>
+            </div>
+            <div>
+                <label>保管位置</label>
+                <select id="f-location"><option value="">全部</option></select>
+            </div>
+            <div>
+                <label>保管人</label>
+                <select id="f-leader"><option value="">全部</option></select>
+            </div>
+            <div>
+                <label>財產類別</label>
+                <select id="f-category"><option value="">全部</option></select>
+            </div>
+            <div style="display:flex; align-items:flex-end;">
+                <button id="clearFiltersBtn" class="btn btn-ghost" style="width:100%;">
+                    <i class="fa-solid fa-eraser"></i>
+                    清除篩選
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 清單 -->
+    <div class="card" style="margin-top: 16px;">
+        <div id="tableContainer" class="table-wrap">
+            <div class="loading-skeleton">
+                <i class="fa-solid fa-spinner fa-spin"></i>
+                <div style="margin-top:8px;">載入資產中…</div>
+            </div>
+        </div>
+        <div class="list-toolbar">
+            <div id="countSummary">—</div>
+            <div style="display:flex; align-items:center; gap: 12px; flex-wrap: wrap;">
+                <label style="display:flex; align-items:center; gap:6px; font-size:0.85rem;">
+                    每頁顯示
+                    <select id="pageSizeSelect" style="padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 6px;">
+                        <option value="25">25</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                        <option value="200">200</option>
+                    </select>
+                </label>
+                <div id="pager" class="pager"></div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- 固定底部操作列 -->
+<div id="actionBar" class="action-bar">
+    <div class="count-badge">
+        已選取 <span id="selectedCount" class="num">0</span> 筆
+    </div>
+    <div style="display:flex; gap: 8px; flex-wrap: wrap;">
+        <button id="previewBtn" class="btn btn-ghost">
+            <i class="fa-solid fa-eye"></i>
+            預覽第一筆
+        </button>
+        <button id="clearSelectionBtn" class="btn btn-ghost">
+            <i class="fa-solid fa-xmark"></i>
+            取消選取
+        </button>
+        <button id="printBtn" class="btn btn-primary">
+            <i class="fa-solid fa-download"></i>
+            下載 PDF
+        </button>
+    </div>
+</div>
+
+<!-- 預覽 Modal -->
+<div id="previewModal" class="modal-backdrop">
+    <div class="modal-content">
+        <h3><i class="fa-solid fa-eye" style="color: var(--accent-500);"></i> 標籤預覽</h3>
+        <div class="preview-wrap">
+            <div class="preview-scale">
+                <div id="preview-label" class="label-preview-body"></div>
+            </div>
+        </div>
+        <p style="color: var(--ink-500); font-size: 0.82rem; margin-top: 12px;">
+            * 實際列印尺寸 60.06 × 30.03 mm，採用 Code 128 條碼。
+        </p>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top: 12px;">
+            <button class="btn btn-ghost" onclick="closeModal('previewModal')">關閉</button>
+        </div>
+    </div>
+</div>
+
+<!-- 列印進度 Modal -->
+<div id="progressModal" class="modal-backdrop">
+    <div class="modal-content">
+        <h3><i class="fa-solid fa-file-pdf" style="color: var(--accent-500);"></i> 產生 PDF 中</h3>
+        <p id="progressText" style="color: var(--ink-700); margin: 6px 0;">準備中…</p>
+        <div class="progress-bar-wrap"><div id="progressBar" class="progress-bar"></div></div>
+        <p style="color: var(--ink-500); font-size: 0.82rem;">請稍候，瀏覽器會自動下載完成後的 PDF 檔。</p>
+    </div>
+</div>
+
+<!-- 錯誤提示 Modal -->
+<div id="alertModal" class="modal-backdrop">
+    <div class="modal-content">
+        <h3 id="alertTitle"><i class="fa-solid fa-circle-exclamation" style="color: #d97706;"></i> 提醒</h3>
+        <p id="alertBody" style="color: var(--ink-700); white-space: pre-wrap;"></p>
+        <div style="display:flex; justify-content:flex-end; margin-top: 12px;">
+            <button class="btn btn-primary" onclick="closeModal('alertModal')">確定</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===== 隱藏的標籤渲染區：html2canvas 會擷取此區塊產出圖檔 ===== -->
+<div class="label-offscreen">
+    <div id="label-template">
+        <div class="row-header">
+            <div>中央研究院</div>
+            <div id="lbl-prop-no"></div>
+            <div id="lbl-life"></div>
+        </div>
+        <div class="row-name" id="lbl-name"></div>
+        <div class="row-alias" id="lbl-alias"></div>
+        <div class="row-info">
+            <div class="info-loc" id="lbl-loc"></div>
+            <div class="info-custodian" id="lbl-custodian"></div>
+            <div class="info-date" id="lbl-date"></div>
+        </div>
+        <div class="row-barcode">
+            <svg id="barcode-svg"></svg>
+        </div>
+        <div class="row-small-text" id="lbl-prop-no-small"></div>
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    // =========================================================
+    // 狀態
+    // =========================================================
+    const state = {
+        assets: [],
+        filtered: [],
+        selected: new Set(),
+        page: 1,
+        pageSize: 50,
+        isAdmin: false,
+        forceUserScope: false,
+        filters: { search: '', system: '', status: '', location: '', leader: '', category: '' }
+    };
+
+    // =========================================================
+    // DOM shortcut
+    // =========================================================
+    const $ = (id) => document.getElementById(id);
+
+    // =========================================================
+    // Helpers
+    // =========================================================
+    function debounce(fn, wait) {
+        let t;
+        return function (...args) {
+            clearTimeout(t);
+            t = setTimeout(() => fn.apply(this, args), wait);
+        };
+    }
+
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // ISO / Date → 民國年 YYY/MM/DD（空值回空字串）
+    function toRocDate(value) {
+        if (!value) return '';
+        const d = (value instanceof Date) ? value : new Date(value);
+        if (!d || isNaN(d.getTime())) return String(value);
+        const y = d.getFullYear() - 1911;
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}/${m}/${day}`;
+    }
+
+    function formatUseLife(val) {
+        if (val === null || val === undefined || val === '') return '';
+        const s = String(val).trim();
+        if (!s) return '';
+        // 若已含「年」或其他單位，直接顯示；否則補上「年」
+        return /[年月日]/.test(s) ? s : `${s}年`;
+    }
+
+    function systemLabel(asset) {
+        const src = String(asset.sourceSheet || '');
+        if (src.indexOf('財產') !== -1) return '財產';
+        if (src.indexOf('物品') !== -1) return '物品';
+        return src || '其他';
+    }
+
+    function getAliasDisplay(asset) {
+        return asset.assetAlias || asset.productSerial || '';
+    }
+
+    function buildSearchText(a) {
+        return [
+            a.assetId, a.assetName, a.assetAlias, a.productSerial,
+            a.leaderName, a.userName, a.location, a.assetStatus, a.assetCategory, a.modelBrand
+        ].filter(Boolean).join(' ').toLowerCase();
+    }
+
+    function uniqSorted(arr) {
+        return Array.from(new Set(arr.filter(v => v !== null && v !== undefined && v !== '')))
+            .map(String)
+            .sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+    }
+
+    function showAlert(msg, title) {
+        $('alertBody').textContent = msg || '';
+        if (title) $('alertTitle').innerHTML = `<i class="fa-solid fa-circle-exclamation" style="color:#d97706;"></i> ${escapeHtml(title)}`;
+        openModal('alertModal');
+    }
+    function openModal(id) { $(id).classList.add('visible'); }
+    function closeModal(id) { $(id).classList.remove('visible'); }
+    window.closeModal = closeModal;
+
+    // =========================================================
+    // 載入資料
+    // =========================================================
+    function loadData() {
+        $('tableContainer').innerHTML = `
+            <div class="loading-skeleton">
+                <i class="fa-solid fa-spinner fa-spin"></i>
+                <div style="margin-top:8px;">載入資產中…</div>
+            </div>`;
+        google.script.run
+            .withSuccessHandler(onDataLoaded)
+            .withFailureHandler(onDataFailed)
+            .getUserStateData(state.forceUserScope);
+    }
+
+    function onDataFailed(err) {
+        $('tableContainer').innerHTML = `
+            <div class="empty-state">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                <div>載入失敗：${escapeHtml(err && err.message ? err.message : '未知錯誤')}</div>
+                <button class="btn btn-primary" style="margin-top:10px;" onclick="location.reload()">重新載入</button>
+            </div>`;
+    }
+
+    function onDataLoaded(resp) {
+        if (!resp || !Array.isArray(resp.assets)) {
+            onDataFailed(new Error('伺服器回傳格式不正確'));
+            return;
+        }
+        state.isAdmin = !!resp.isAdmin;
+        state.assets = resp.assets.map(a => {
+            a.__search = buildSearchText(a);
+            return a;
+        });
+
+        // 視角 chip
+        const chip = $('viewScopeChip');
+        const toggleBtn = $('scopeToggleBtn');
+        const toggleText = $('scopeToggleText');
+        if (state.isAdmin) {
+            toggleBtn.style.display = '';
+            chip.style.display = '';
+            if (state.forceUserScope) {
+                chip.textContent = '個人視角（僅您名下的資產）';
+                toggleText.textContent = '切換為管理員';
+            } else {
+                chip.textContent = `管理員視角（全部 ${state.assets.length} 筆）`;
+                toggleText.textContent = '切換為個人視角';
+            }
+        } else {
+            toggleBtn.style.display = 'none';
+            chip.style.display = '';
+            chip.textContent = `我的資產（${state.assets.length} 筆）`;
+        }
+
+        populateFilters();
+        applyFilters();
+    }
+
+    // =========================================================
+    // 篩選
+    // =========================================================
+    function populateFilters() {
+        const assets = state.assets;
+        const sysOpts  = uniqSorted(assets.map(a => systemLabel(a)));
+        const statOpts = uniqSorted(assets.map(a => a.assetStatus));
+        const locOpts  = uniqSorted(assets.map(a => a.location));
+        const ldrOpts  = uniqSorted(assets.map(a => a.leaderName));
+        const catOpts  = uniqSorted(assets.map(a => a.assetCategory));
+
+        const fill = (id, opts) => {
+            const sel = $(id);
+            const current = sel.value;
+            sel.innerHTML = '<option value="">全部</option>' +
+                opts.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+            sel.value = current; // 保留
+        };
+        fill('f-system', sysOpts);
+        fill('f-status', statOpts);
+        fill('f-location', locOpts);
+        fill('f-leader', ldrOpts);
+        fill('f-category', catOpts);
+    }
+
+    function applyFilters() {
+        const f = state.filters;
+        const q = (f.search || '').toLowerCase();
+
+        state.filtered = state.assets.filter(a => {
+            if (q && (a.__search || '').indexOf(q) === -1) return false;
+            if (f.system   && systemLabel(a) !== f.system) return false;
+            if (f.status   && String(a.assetStatus   || '') !== f.status) return false;
+            if (f.location && String(a.location      || '') !== f.location) return false;
+            if (f.leader   && String(a.leaderName    || '') !== f.leader) return false;
+            if (f.category && String(a.assetCategory || '') !== f.category) return false;
+            return true;
+        });
+
+        state.page = 1;
+        renderTable();
+    }
+
+    // =========================================================
+    // 清單渲染
+    // =========================================================
+    function renderTable() {
+        const total = state.filtered.length;
+        if (total === 0) {
+            $('tableContainer').innerHTML = `
+                <div class="empty-state">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <div>找不到符合條件的資產</div>
+                </div>`;
+            $('countSummary').textContent = '共 0 筆';
+            $('pager').innerHTML = '';
+            updateActionBar();
+            return;
+        }
+
+        const totalPages = Math.max(1, Math.ceil(total / state.pageSize));
+        if (state.page > totalPages) state.page = totalPages;
+        const start = (state.page - 1) * state.pageSize;
+        const slice = state.filtered.slice(start, start + state.pageSize);
+
+        const allChecked = slice.length > 0 && slice.every(a => state.selected.has(String(a.assetId)));
+
+        const rows = slice.map(a => {
+            const id = String(a.assetId || '');
+            const checked = state.selected.has(id);
+            const sysLabel = systemLabel(a);
+            const sysClass = sysLabel === '財產' ? 'badge-property' : (sysLabel === '物品' ? 'badge-item' : 'badge-status');
+            return `
+                <tr class="${checked ? 'selected' : ''}" data-id="${escapeHtml(id)}">
+                    <td><input type="checkbox" class="row-check" ${checked ? 'checked' : ''}></td>
+                    <td class="cell-mono">${escapeHtml(id)}</td>
+                    <td><span class="badge ${sysClass}">${escapeHtml(sysLabel)}</span></td>
+                    <td class="cell-clip" title="${escapeHtml(a.assetName || '')}">${escapeHtml(a.assetName || '')}</td>
+                    <td class="cell-clip" title="${escapeHtml(getAliasDisplay(a))}">${escapeHtml(getAliasDisplay(a))}</td>
+                    <td>${escapeHtml(a.leaderName || '')}</td>
+                    <td class="cell-clip" title="${escapeHtml(a.location || '')}">${escapeHtml(a.location || '')}</td>
+                    <td class="cell-mono">${escapeHtml(toRocDate(a.purchaseDate))}</td>
+                    <td>${escapeHtml(formatUseLife(a.useLife))}</td>
+                    <td><span class="badge badge-status">${escapeHtml(a.assetStatus || '-')}</span></td>
+                    <td>
+                        <button class="btn btn-ghost btn-sm print-one-btn" title="單獨列印此標籤">
+                            <i class="fa-solid fa-print"></i>
+                            列印
+                        </button>
+                    </td>
+                </tr>`;
+        }).join('');
+
+        $('tableContainer').innerHTML = `
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:36px;"><input type="checkbox" id="checkAll" ${allChecked ? 'checked' : ''} title="全選本頁"></th>
+                        <th>財產編號</th>
+                        <th>系統</th>
+                        <th>名稱</th>
+                        <th>別名／序號</th>
+                        <th>保管人</th>
+                        <th>保管位置</th>
+                        <th>購置日期</th>
+                        <th>使用年限</th>
+                        <th>狀態</th>
+                        <th style="width:90px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>`;
+
+        // 摘要 & 分頁
+        $('countSummary').textContent =
+            `共 ${total} 筆（顯示 ${start + 1}–${Math.min(start + state.pageSize, total)}）`;
+        renderPager(totalPages);
+
+        // 綁定：全選本頁
+        $('checkAll').addEventListener('change', (e) => {
+            const on = e.target.checked;
+            slice.forEach(a => {
+                const id = String(a.assetId);
+                if (on) state.selected.add(id); else state.selected.delete(id);
+            });
+            renderTable();
+        });
+
+        // 綁定：單行 checkbox
+        document.querySelectorAll('#tableContainer .row-check').forEach(el => {
+            el.addEventListener('change', (e) => {
+                const tr = e.target.closest('tr');
+                const id = tr.getAttribute('data-id');
+                if (e.target.checked) state.selected.add(id); else state.selected.delete(id);
+                tr.classList.toggle('selected', e.target.checked);
+                updateActionBar();
+                // 更新 header 全選 state
+                const chk = $('checkAll');
+                if (chk) chk.checked = slice.every(a => state.selected.has(String(a.assetId)));
+            });
+        });
+
+        // 綁定：單獨列印
+        document.querySelectorAll('#tableContainer .print-one-btn').forEach(el => {
+            el.addEventListener('click', (e) => {
+                const tr = e.target.closest('tr');
+                const id = tr.getAttribute('data-id');
+                const asset = state.assets.find(a => String(a.assetId) === id);
+                if (asset) printAssetsAsPdf([asset]);
+            });
+        });
+
+        updateActionBar();
+    }
+
+    function renderPager(totalPages) {
+        const pager = $('pager');
+        if (totalPages <= 1) { pager.innerHTML = ''; return; }
+        const cur = state.page;
+        const pages = [];
+        const win = 2;
+        for (let p = 1; p <= totalPages; p++) {
+            if (p === 1 || p === totalPages || (p >= cur - win && p <= cur + win)) {
+                pages.push(p);
+            } else if (pages[pages.length - 1] !== '…') {
+                pages.push('…');
+            }
+        }
+        const html = [
+            `<button ${cur === 1 ? 'disabled' : ''} data-p="${cur - 1}">‹</button>`,
+            ...pages.map(p => p === '…'
+                ? `<button disabled>…</button>`
+                : `<button class="${p === cur ? 'current' : ''}" data-p="${p}">${p}</button>`),
+            `<button ${cur === totalPages ? 'disabled' : ''} data-p="${cur + 1}">›</button>`
+        ].join('');
+        pager.innerHTML = html;
+        pager.querySelectorAll('button').forEach(b => {
+            b.addEventListener('click', () => {
+                const p = parseInt(b.getAttribute('data-p'), 10);
+                if (!isNaN(p) && p >= 1 && p <= totalPages) {
+                    state.page = p;
+                    renderTable();
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            });
+        });
+    }
+
+    // =========================================================
+    // 底部操作列
+    // =========================================================
+    function updateActionBar() {
+        const n = state.selected.size;
+        $('selectedCount').textContent = n;
+        $('actionBar').classList.toggle('visible', n > 0);
+        $('printBtn').disabled = n === 0;
+        $('previewBtn').disabled = n === 0;
+    }
+
+    // =========================================================
+    // 標籤渲染 & PDF 產生
+    // =========================================================
+    function fillLabelTemplate(asset) {
+        const propNo = String(asset.assetId || '');
+        $('lbl-prop-no').textContent = propNo;
+        $('lbl-prop-no-small').textContent = propNo;
+        $('lbl-life').textContent = formatUseLife(asset.useLife);
+        $('lbl-name').textContent = asset.assetName || '';
+        $('lbl-alias').textContent = getAliasDisplay(asset);
+        $('lbl-loc').textContent = asset.location || '';
+        $('lbl-custodian').textContent = asset.leaderName || '';
+        $('lbl-date').textContent = toRocDate(asset.purchaseDate);
+
+        // 條碼：CODE128，與範例完全一致
+        try {
+            if (propNo) {
+                JsBarcode("#barcode-svg", propNo, {
+                    format: "CODE128",
+                    displayValue: false,
+                    margin: 0,
+                    width: 2,
+                    height: 40
+                });
+                document.getElementById("barcode-svg").setAttribute("preserveAspectRatio", "none");
+            } else {
+                // 無編號則清空
+                document.getElementById("barcode-svg").innerHTML = '';
+            }
+        } catch (e) {
+            console.error("條碼生成失敗：", e, "資產：", propNo);
+        }
+    }
+
+    async function printAssetsAsPdf(assets) {
+        if (!assets || assets.length === 0) return;
+        if (!window.jspdf || !window.JsBarcode || !window.html2canvas) {
+            showAlert('列印資源尚未完全載入，請稍後再試。');
+            return;
+        }
+
+        openModal('progressModal');
+        const progressBar = $('progressBar');
+        const progressText = $('progressText');
+        progressBar.style.width = '0%';
+
+        try {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF({
+                orientation: 'landscape',
+                unit: 'mm',
+                format: [60.06, 30.03]
+            });
+
+            for (let i = 0; i < assets.length; i++) {
+                const a = assets[i];
+                progressText.textContent = `產生中 ${i + 1} / ${assets.length}：${a.assetId || ''}`;
+                fillLabelTemplate(a);
+
+                // 讓 DOM 有時間繪製
+                await new Promise(r => setTimeout(r, 30));
+
+                const canvas = await html2canvas(document.getElementById('label-template'), {
+                    scale: 4,
+                    useCORS: true,
+                    backgroundColor: '#ffffff'
+                });
+                const imgData = canvas.toDataURL('image/png');
+                if (i > 0) pdf.addPage([60.06, 30.03], 'landscape');
+                pdf.addImage(imgData, 'PNG', 0, 0, 60.06, 30.03);
+
+                progressBar.style.width = `${((i + 1) / assets.length * 100).toFixed(1)}%`;
+            }
+
+            const filename = assets.length === 1
+                ? `財產標籤_${String(assets[0].assetId || 'label').replace(/[\/\\:*?"<>|]/g, '_')}.pdf`
+                : `財產標籤_批次${assets.length}筆_${new Date().toISOString().slice(0, 10)}.pdf`;
+            pdf.save(filename);
+
+            progressText.textContent = '完成！';
+            setTimeout(() => closeModal('progressModal'), 500);
+        } catch (err) {
+            console.error(err);
+            closeModal('progressModal');
+            showAlert('PDF 產生失敗：' + (err && err.message ? err.message : '未知錯誤'));
+        }
+    }
+
+    // =========================================================
+    // 預覽（使用同一個 label template 的快照）
+    // =========================================================
+    function openPreview() {
+        if (state.selected.size === 0) return;
+        // 取第一筆已選的（但從 filtered 陣列順序挑，更符合使用者直覺）
+        const firstSelected = state.filtered.find(a => state.selected.has(String(a.assetId)))
+            || state.assets.find(a => state.selected.has(String(a.assetId)));
+        if (!firstSelected) return;
+
+        fillLabelTemplate(firstSelected);
+
+        // 將 label-template 的 HTML 複製到 preview 容器
+        const clone = document.getElementById('label-template').cloneNode(true);
+        // 清除原 id 避免衝突
+        clone.id = 'preview-label-inner';
+        clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+        const wrap = $('preview-label');
+        wrap.innerHTML = '';
+        wrap.appendChild(clone);
+
+        openModal('previewModal');
+    }
+
+    // =========================================================
+    // 事件綁定
+    // =========================================================
+    function bindEvents() {
+        // 篩選輸入
+        $('f-search').addEventListener('input', debounce((e) => {
+            state.filters.search = e.target.value.trim();
+            applyFilters();
+        }, 180));
+        ['f-system', 'f-status', 'f-location', 'f-leader', 'f-category'].forEach(id => {
+            $(id).addEventListener('change', (e) => {
+                const key = id.replace('f-', '');
+                state.filters[key] = e.target.value;
+                applyFilters();
+            });
+        });
+        $('clearFiltersBtn').addEventListener('click', () => {
+            state.filters = { search: '', system: '', status: '', location: '', leader: '', category: '' };
+            $('f-search').value = '';
+            ['f-system', 'f-status', 'f-location', 'f-leader', 'f-category'].forEach(id => $(id).value = '');
+            applyFilters();
+        });
+
+        // 每頁筆數
+        $('pageSizeSelect').addEventListener('change', (e) => {
+            state.pageSize = parseInt(e.target.value, 10) || 50;
+            state.page = 1;
+            renderTable();
+        });
+
+        // 底部工具
+        $('clearSelectionBtn').addEventListener('click', () => {
+            state.selected.clear();
+            renderTable();
+        });
+        $('printBtn').addEventListener('click', () => {
+            if (state.selected.size === 0) return;
+            // 依照篩選後的順序排序輸出
+            const idSet = state.selected;
+            const inFiltered = state.filtered.filter(a => idSet.has(String(a.assetId)));
+            const orderedIds = new Set(inFiltered.map(a => String(a.assetId)));
+            const tail = state.assets.filter(a => idSet.has(String(a.assetId)) && !orderedIds.has(String(a.assetId)));
+            printAssetsAsPdf([...inFiltered, ...tail]);
+        });
+        $('previewBtn').addEventListener('click', openPreview);
+
+        // 視角切換
+        $('scopeToggleBtn').addEventListener('click', () => {
+            state.forceUserScope = !state.forceUserScope;
+            state.selected.clear();
+            loadData();
+        });
+
+        // 關閉 modal：背景點擊關閉
+        document.querySelectorAll('.modal-backdrop').forEach(m => {
+            m.addEventListener('click', (e) => {
+                if (e.target === m) m.classList.remove('visible');
+            });
+        });
+    }
+
+    // =========================================================
+    // Boot
+    // =========================================================
+    document.addEventListener('DOMContentLoaded', () => {
+        bindEvents();
+        loadData();
+    });
+})();
+</script>
+
+</body>
+</html>
