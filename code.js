@@ -1097,6 +1097,7 @@ function getAppUrl() {
 function getFabNavigationUrls() {
   var ismsBaseUrl = 'https://script.google.com/a/macros/as.edu.tw/s/AKfycbxkg0u0OFBLCft2gHstJ3eVE94INrZ1G59Ek0MIs_fmdLG00N9YoHyH9EmbW4geifg7/exec';
   return {
+    isAdmin: checkAdminPermissions(),
     ismsAssetUrl: ismsBaseUrl,
     ismsConnectUrl: ismsBaseUrl + '?page=connect',
     softwareListUrl: ismsBaseUrl + '?page=softwarelist',

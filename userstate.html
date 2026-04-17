@@ -15893,8 +15893,8 @@
     <!-- 遮罩 -->
     <div class="fab-overlay" id="fabOverlay"></div>
 
-    <!-- FAB 按鈕群組 -->
-    <div class="fab-container" id="fabContainer">
+    <!-- FAB 按鈕群組（預設隱藏，僅管理員可見） -->
+    <div class="fab-container" id="fabContainer" style="display: none;">
       <button class="fab-main" id="fabMain" title="快速導航">
         <svg class="fab-icon-svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polygon points="12,2 20,7 20,17 12,22 4,17 4,7" />
@@ -15939,13 +15939,15 @@
     (function() {
       'use strict';
 
-      // ===== 設定快速導航連結 =====
+      // ===== 設定快速導航連結（僅管理員可見 FAB） =====
       google.script.run
         .withSuccessHandler(function(urls) {
+          if (!urls || !urls.isAdmin) return; // 非管理員不顯示 FAB
           if (urls.ismsAssetUrl)    document.getElementById('fabLinkIsmsAsset').href = urls.ismsAssetUrl;
           if (urls.ismsConnectUrl)  document.getElementById('fabLinkIsmsConnect').href = urls.ismsConnectUrl;
           if (urls.softwareListUrl) document.getElementById('fabLinkSoftware').href = urls.softwareListUrl;
           if (urls.sheetUrl)        document.getElementById('fabLinkSheet').href = urls.sheetUrl;
+          document.getElementById('fabContainer').style.display = '';
         })
         .withFailureHandler(function() {})
         .getFabNavigationUrls();
