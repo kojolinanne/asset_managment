@@ -291,7 +291,7 @@
             background-color: #ffffff;
             color: #000000;
             font-family: 'Noto Sans TC', 'Microsoft JhengHei', 'PingFang TC', sans-serif;
-            padding: 1mm 2mm 0.8mm 2mm;
+            padding: 2mm 2mm 0.5mm 2mm;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
@@ -302,47 +302,101 @@
             text-rendering: geometricPrecision;
             -webkit-font-smoothing: antialiased;
         }
-        /* 文字列：固定順序、不可被壓縮、過長以 ellipsis 收尾 */
+        /* 所有文字列：不可被壓縮 */
         .row-header, .row-name, .row-alias, .row-info, .row-small-text { flex-shrink: 0; }
 
+        /* 第一列：機構名稱＋財産編號（左），使用年限（右） Y≈4mm */
         .row-header {
             display: flex;
             justify-content: space-between;
             align-items: baseline;
-            font-size: 7.5pt;
-            font-weight: bold;
             gap: 1mm;
         }
-        .row-header > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .row-header > div:nth-child(1) { flex: 0 0 auto; }
-        .row-header > div:nth-child(2) { flex: 1 1 auto; text-align: center; }
-        .row-header > div:nth-child(3) { flex: 0 0 auto; }
-
-        .row-name   { font-size: 7.5pt; font-weight: bold; margin-top: 0.2mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .row-alias  { font-size: 8pt;   margin-top: 0.2mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .row-info   {
-            display: grid;
-            grid-template-columns: 48% 27% 25%;
-            font-size: 7pt;
-            margin-top: 0.2mm;
+        .header-left {
+            display: flex;
+            align-items: baseline;
+            gap: 2mm;
+            overflow: hidden;
+            flex-shrink: 1;
         }
-        .info-loc       { text-align: left;  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .info-custodian { text-align: right; padding-right: 2mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .info-date      { text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .header-org {
+            font-size: 7pt;
+            font-weight: 500;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .header-prop-no {
+            font-size: 8.5pt;
+            font-weight: 700;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .header-life {
+            font-size: 7pt;
+            font-weight: 500;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
 
-        /* 條碼：固定高度（約 10mm），避免 flex-grow 吃掉文字列的空間 */
+        /* 第二列：財産名稱（主要大字）Y≈9mm */
+        .row-name {
+            font-size: 11pt;
+            font-weight: 700;
+            margin-top: 2mm;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* 第三列：財産別名 Y≈14mm */
+        .row-alias {
+            font-size: 8pt;
+            margin-top: 1.5mm;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* 第四列：位置（左）、保管人＋日期（右） Y≈19mm */
+        .row-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-size: 7pt;
+            margin-top: 2mm;
+            gap: 1mm;
+        }
+        .info-loc {
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1 1 auto;
+        }
+        .info-right {
+            display: flex;
+            gap: 1.5mm;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        /* 條碼：高度 6.5mm，寬度 90%，置中 Y≈21mm */
         .row-barcode {
             display: flex;
             justify-content: center;
             align-items: stretch;
-            margin-top: 0.4mm;
-            width: 100%;
-            height: 10mm;
-            flex: 0 0 10mm;
+            margin-top: 0.8mm;
+            width: 90%;
+            align-self: center;
+            height: 6.5mm;
+            flex: 0 0 6.5mm;
             overflow: hidden;
         }
         .row-barcode svg { height: 100%; width: 100%; display: block; }
-        .row-small-text { font-size: 6pt; text-align: center; margin-top: 0.4mm; font-family: 'Arial', sans-serif; }
+
+        /* 底部小字：置中 Y≈29mm */
+        .row-small-text { font-size: 6pt; text-align: center; margin-top: 0.5mm; font-family: 'Arial', sans-serif; }
 
         /* 預覽用：放大顯示
            標籤 60.06×30.03mm，scale(2.2) 後視覺尺寸約 500×250px
@@ -535,16 +589,20 @@
 <div class="label-capture-stage" aria-hidden="true">
     <div id="label-template" class="label-tpl">
         <div class="row-header">
-            <div>中央研究院</div>
-            <div id="lbl-prop-no"></div>
-            <div id="lbl-life"></div>
+            <div class="header-left">
+                <span class="header-org">中央研究院</span>
+                <span class="header-prop-no" id="lbl-prop-no"></span>
+            </div>
+            <span class="header-life" id="lbl-life"></span>
         </div>
         <div class="row-name" id="lbl-name"></div>
         <div class="row-alias" id="lbl-alias"></div>
         <div class="row-info">
             <div class="info-loc" id="lbl-loc"></div>
-            <div class="info-custodian" id="lbl-custodian"></div>
-            <div class="info-date" id="lbl-date"></div>
+            <div class="info-right">
+                <span id="lbl-custodian"></span>
+                <span id="lbl-date"></span>
+            </div>
         </div>
         <div class="row-barcode">
             <svg id="barcode-svg"></svg>
