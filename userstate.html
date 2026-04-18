@@ -2115,6 +2115,16 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useCallback, useRef } = React;
 
+        // GAS sandbox iframe 內 window.location.href 並非部署網址，需向後端取得
+        // 預先快取供按鈕同步取用（避免 google.script.run 的 async callback 被 popup blocker 擋）
+        let __WEB_APP_URL = '';
+        try {
+            google.script.run
+                .withSuccessHandler((url) => { if (url) __WEB_APP_URL = url; })
+                .withFailureHandler(() => {})
+                .getAppUrl();
+        } catch (e) { /* ignore */ }
+
         const ACTION_LABELS = {
             TRANSFER: '轉移',
             LEND: '出借',
@@ -15305,8 +15315,11 @@
                                 {/* 列印條碼按鈕（所有使用者可見） */}
                                 <button
                                     onClick={() => {
-                                        const base = window.location.href.split('?')[0];
-                                        window.open(base + '?page=barcodeprint', '_blank');
+                                        if (!__WEB_APP_URL) {
+                                            alert('正在準備列印頁面連結，請稍候再點一次。');
+                                            return;
+                                        }
+                                        window.open(__WEB_APP_URL + '?page=barcodeprint', '_blank');
                                     }}
                                     className="hero-btn hero-btn--ghost"
                                     title="開啟列印條碼頁面"
