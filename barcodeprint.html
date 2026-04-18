@@ -381,7 +381,7 @@
             display: flex;
             justify-content: center;
             align-items: stretch;
-            margin-top: 1.8mm;
+            margin-top: 2.3mm;
             width: 90%;
             align-self: center;
             height: 8mm;
@@ -412,7 +412,7 @@
         /* 第三列：廠牌/型號 */
         .row-brand {
             font-size: 8pt;
-            margin-top: 0.3mm;
+            margin-top: 0.5mm;
             white-space: nowrap;
         }
 
@@ -422,7 +422,7 @@
             justify-content: space-between;
             align-items: baseline;
             font-size: 8pt;
-            margin-top: 0.3mm;
+            margin-top: 0.5mm;
             gap: 1mm;
         }
         .row-info-new .info-loc {
@@ -434,11 +434,13 @@
         /* 新系統：條碼靠左對齊（覆寫舊系統的 center） */
         #label-template[data-system="new"] .row-barcode {
             align-self: flex-start;
+            margin-top: 2.3mm;
         }
 
         /* 新系統：編號純文字靠左對齊（覆寫舊系統的 center） */
         #label-template[data-system="new"] .row-small-text {
             text-align: left;
+            margin-top: 0.5mm;
         }
 
         /* 預覽用：放大顯示
