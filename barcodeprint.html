@@ -291,11 +291,11 @@
             background-color: #ffffff;
             color: #000000;
             font-family: 'Noto Sans TC', 'Microsoft JhengHei', 'PingFang TC', sans-serif;
-            padding: 2mm 2mm 0.5mm 2mm;
+            padding: 1mm 2mm 0.5mm 2mm;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
-            line-height: 2;
+            line-height: 1;
             transform-origin: top left;
             overflow: hidden;
             visibility: visible;
@@ -316,7 +316,6 @@
             display: flex;
             align-items: baseline;
             gap: 4mm;
-            overflow: hidden;
             flex-shrink: 1;
         }
         .header-org {
@@ -329,8 +328,6 @@
             font-size: 8pt;
             font-weight: 700;
             white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
         }
         .header-life {
             font-size: 8pt;
@@ -345,8 +342,6 @@
             font-weight: 700;
             margin-top: 0.3mm;
             white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
         }
 
         /* 第三列：財産別名 Y≈14mm */
@@ -354,8 +349,6 @@
             font-size: 8pt;
             margin-top: 0.3mm;
             white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
         }
 
         /* 第四列：位置（左）、保管人＋日期（右） Y≈19mm */
@@ -370,8 +363,6 @@
         .info-loc {
             text-align: left;
             white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
             flex: 1 1 auto;
         }
         .info-right {
@@ -386,7 +377,7 @@
             display: flex;
             justify-content: center;
             align-items: stretch;
-            margin-top: 0.2mm;
+            margin-top: 1.8mm;
             width: 90%;
             align-self: center;
             height: 8mm;
@@ -685,11 +676,19 @@
         return asset.assetAlias || asset.productSerial || '';
     }
 
+    // 移除民國年首位的 0,例如 "0109/4/3" → "109/4/3"
+    function stripLeadingZeroOnRocDate(s) {
+        if (!s) return '';
+        const str = String(s).trim();
+        // 僅在「以 0 開頭、且第二碼仍為數字」時才剝除,避免把單碼 "0/x/x" 誤吃
+        return str.replace(/^0(?=\d)/, '');
+    }
+
     function getPurchaseDateDisplay(asset) {
         if (asset && asset.purchaseDateDisplay) {
-            return String(asset.purchaseDateDisplay);
+            return stripLeadingZeroOnRocDate(asset.purchaseDateDisplay);
         }
-        return toRocDate(asset ? asset.purchaseDate : '');
+        return stripLeadingZeroOnRocDate(toRocDate(asset ? asset.purchaseDate : ''));
     }
 
     function buildSearchText(a) {
