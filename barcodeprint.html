@@ -446,7 +446,7 @@
                 <i class="fa-solid fa-shuffle"></i>
                 <span id="scopeToggleText">切換視角</span>
             </button>
-            <a href="?" class="btn btn-ghost">
+            <a href="#" id="backToHomeLink" class="btn btn-ghost">
                 <i class="fa-solid fa-arrow-left"></i>
                 返回資產管理
             </a>
@@ -1157,8 +1157,21 @@
     // =========================================================
     // Boot
     // =========================================================
+    // 取得部署 URL 並設到「返回資產管理」連結（sandbox iframe 內相對 URL 不可靠）
+    function wireBackLink() {
+        const link = $('backToHomeLink');
+        if (!link) return;
+        google.script.run
+            .withSuccessHandler((url) => {
+                if (url) link.setAttribute('href', url);
+            })
+            .withFailureHandler(() => { /* 保留 href="#"，點擊無作用總比跳錯頁好 */ })
+            .getAppUrl();
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         bindEvents();
+        wireBackLink();
         loadData();
     });
 })();
