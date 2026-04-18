@@ -306,8 +306,8 @@
         .row-header, .row-header-new, .row-name, .row-alias, .row-brand, .row-info, .row-info-new, .row-small-text { flex-shrink: 0; }
 
         /* 依系統切換顯示（舊系統／新系統共存於同一模板中） */
-        #label-template[data-system="new"] .old-only { display: none; }
-        #label-template[data-system="old"] .new-only { display: none; }
+        .label-tpl[data-system="new"] .old-only { display: none; }
+        .label-tpl[data-system="old"] .new-only { display: none; }
 
         /* 第一列：機構名稱＋財産編號（左），使用年限（右） Y≈4mm */
         .row-header {
@@ -349,7 +349,7 @@
         }
 
         /* 舊系統第三列：財産別名 Y≈14mm */
-        #label-template[data-system="old"] .row-alias {
+        .label-tpl[data-system="old"] .row-alias {
             font-size: 8pt;
             margin-top: 0.3mm;
             white-space: nowrap;
@@ -409,7 +409,7 @@
         }
 
         /* 第二列：財産別名 */
-        #label-template[data-system="new"] .row-alias {
+        .label-tpl[data-system="new"] .row-alias {
             font-size: 7pt;
             margin-top: 1mm;
             white-space: nowrap;
@@ -438,7 +438,7 @@
         }
 
         /* 新系統：條碼靠左對齊（覆寫舊系統的 center） */
-        #label-template[data-system="new"] .row-barcode {
+        .label-tpl[data-system="new"] .row-barcode {
             align-self: flex-start;
             margin-top: 2.3mm;
             height: 6mm;
@@ -446,7 +446,7 @@
         }
 
         /* 新系統：編號純文字靠左對齊（覆寫舊系統的 center） */
-        #label-template[data-system="new"] .row-small-text {
+        .label-tpl[data-system="new"] .row-small-text {
             text-align: left;
             font-size: 8pt;      /* ← 調字型大小改這裡 */                 
             margin-top: 0.1mm;   /* ← 縮小與條碼的間距改這裡 */  
