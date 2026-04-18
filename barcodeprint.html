@@ -505,10 +505,6 @@
         </div>
         <div style="display:flex; gap: 8px; flex-wrap: wrap;">
             <span id="viewScopeChip" class="chip" style="display:none;"></span>
-            <button id="scopeToggleBtn" class="btn btn-ghost" style="display:none;" title="切換管理員／個人視角">
-                <i class="fa-solid fa-shuffle"></i>
-                <span id="scopeToggleText">切換視角</span>
-            </button>
             <a href="#" id="backToHomeLink" class="btn btn-ghost">
                 <i class="fa-solid fa-arrow-left"></i>
                 返回資產管理
@@ -853,20 +849,10 @@
 
         // 視角 chip
         const chip = $('viewScopeChip');
-        const toggleBtn = $('scopeToggleBtn');
-        const toggleText = $('scopeToggleText');
         if (state.isAdmin) {
-            toggleBtn.style.display = '';
             chip.style.display = '';
-            if (state.forceUserScope) {
-                chip.textContent = '個人視角（僅您名下的資產）';
-                toggleText.textContent = '切換為管理員';
-            } else {
-                chip.textContent = `管理員視角（全部 ${state.assets.length} 筆）`;
-                toggleText.textContent = '切換為個人視角';
-            }
+            chip.textContent = `管理員視角（全部 ${state.assets.length} 筆）`;
         } else {
-            toggleBtn.style.display = 'none';
             chip.style.display = '';
             chip.textContent = `我的資產（${state.assets.length} 筆）`;
         }
@@ -1261,13 +1247,6 @@
             printAssetsAsPdf([...inFiltered, ...tail]);
         });
         $('previewBtn').addEventListener('click', openPreview);
-
-        // 視角切換
-        $('scopeToggleBtn').addEventListener('click', () => {
-            state.forceUserScope = !state.forceUserScope;
-            state.selected.clear();
-            loadData();
-        });
 
         // 關閉 modal：背景點擊關閉
         document.querySelectorAll('.modal-backdrop').forEach(m => {
