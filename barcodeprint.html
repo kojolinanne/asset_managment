@@ -667,8 +667,8 @@
 
     function systemLabel(asset) {
         const src = String(asset.sourceSheet || '');
-        if (src.indexOf('財產') !== -1) return '財產';
-        if (src.indexOf('物品') !== -1) return '物品';
+        if (src.indexOf('財產') !== -1) return '新系統';
+        if (src.indexOf('物品') !== -1) return '舊系統';
         return src || '其他';
     }
 
@@ -843,7 +843,7 @@
             const id = String(a.assetId || '');
             const checked = state.selected.has(id);
             const sysLabel = systemLabel(a);
-            const sysClass = sysLabel === '財產' ? 'badge-property' : (sysLabel === '物品' ? 'badge-item' : 'badge-status');
+            const sysClass = sysLabel === '新系統' ? 'badge-property' : (sysLabel === '舊系統' ? 'badge-item' : 'badge-status');
             return `
                 <tr class="${checked ? 'selected' : ''}" data-id="${escapeHtml(id)}">
                     <td><input type="checkbox" class="row-check" ${checked ? 'checked' : ''}></td>
