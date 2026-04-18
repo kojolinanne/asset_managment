@@ -54,7 +54,8 @@ const PROPERTY_COLUMN_INDICES = {
   IS_ISO_SCOPE: 26,     // Z欄: 是否在ISO驗證範圍內
   NOTES: 30,            // AD欄: 備註
   DEFAULT_GROUP: 31,    // AE欄: 預設組別
-  ISMS_ASSET_ID: 32     // AF欄: 對應資訊資產編號
+  ISMS_ASSET_ID: 32,    // AF欄: 對應資訊資產編號
+  PROPERTY_CATEGORY: 33 // AG欄: 財產區分（科研基金 / 公務用_一般 等）
 };
 
 const ITEM_COLUMN_INDICES = {
@@ -246,6 +247,7 @@ function mapRowToAssetObject(row, indices, sourceSheet) {
       isIsoScope: row[indices.IS_ISO_SCOPE - 1],
       ismsAssetId: indices.ISMS_ASSET_ID ? row[indices.ISMS_ASSET_ID - 1] : '',
       defaultGroup: indices.DEFAULT_GROUP ? row[indices.DEFAULT_GROUP - 1] : null,
+      propertyCategory: indices.PROPERTY_CATEGORY ? (row[indices.PROPERTY_CATEGORY - 1] || '') : '',
       sourceSheet: sourceSheet
     };
 }
@@ -1022,7 +1024,8 @@ function getUserStateData(forceUserScope) {
       purchaseDateDisplay: formatUserStateDateDisplay_(asset.purchaseDate),
       isItAsset: asset.isItAsset || '',
       isIsoScope: asset.isIsoScope || '',
-      ismsAssetId: String(mapping.ismsAssetId || asset.ismsAssetId || '')
+      ismsAssetId: String(mapping.ismsAssetId || asset.ismsAssetId || ''),
+      propertyCategory: String(asset.propertyCategory || '')
     };
   });
 

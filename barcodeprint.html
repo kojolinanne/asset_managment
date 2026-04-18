@@ -303,7 +303,11 @@
             -webkit-font-smoothing: antialiased;
         }
         /* 所有文字列：不可被壓縮 */
-        .row-header, .row-name, .row-alias, .row-info, .row-small-text { flex-shrink: 0; }
+        .row-header, .row-header-new, .row-name, .row-alias, .row-brand, .row-info, .row-info-new, .row-small-text { flex-shrink: 0; }
+
+        /* 依系統切換顯示（舊系統／新系統共存於同一模板中） */
+        #label-template[data-system="new"] .old-only { display: none; }
+        #label-template[data-system="old"] .new-only { display: none; }
 
         /* 第一列：機構名稱＋財産編號（左），使用年限（右） Y≈4mm */
         .row-header {
@@ -388,6 +392,54 @@
 
         /* 底部小字：置中 Y≈29mm */
         .row-small-text { font-size: 7pt; text-align: center; margin-top: 0.4mm; font-family: 'Arial', sans-serif; }
+
+        /* ===== 新系統專屬版面 ===== */
+        /* 第一列：機構｜購置日期｜使用年限（3 欄 flex） */
+        .row-header-new {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 1mm;
+            font-size: 8pt;
+        }
+        .row-header-new .header-org,
+        .row-header-new .header-date-new,
+        .row-header-new .header-life {
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        /* 第三列：廠牌/型號 */
+        .row-brand {
+            font-size: 8pt;
+            margin-top: 0.3mm;
+            white-space: nowrap;
+        }
+
+        /* 第四列：位置｜保管人（無日期） */
+        .row-info-new {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-size: 8pt;
+            margin-top: 0.3mm;
+            gap: 1mm;
+        }
+        .row-info-new .info-loc {
+            text-align: left;
+            white-space: nowrap;
+            flex: 1 1 auto;
+        }
+
+        /* 新系統：條碼靠左對齊（覆寫舊系統的 center） */
+        #label-template[data-system="new"] .row-barcode {
+            align-self: flex-start;
+        }
+
+        /* 新系統：編號純文字靠左對齊（覆寫舊系統的 center） */
+        #label-template[data-system="new"] .row-small-text {
+            text-align: left;
+        }
 
         /* 預覽用：放大顯示
            標籤 60.06×30.03mm，scale(2.2) 後視覺尺寸約 500×250px
@@ -578,26 +630,53 @@
 
 <!-- ===== 隱藏的標籤渲染區：html2canvas 會擷取此區塊產出圖檔 ===== -->
 <div class="label-capture-stage" aria-hidden="true">
-    <div id="label-template" class="label-tpl">
-        <div class="row-header">
+    <div id="label-template" class="label-tpl" data-system="old">
+        <!-- 舊系統第一列：機構+編號｜使用年限 -->
+        <div class="row-header old-only">
             <div class="header-left">
                 <span class="header-org">中央研究院</span>
                 <span class="header-prop-no" id="lbl-prop-no"></span>
             </div>
             <span class="header-life" id="lbl-life"></span>
         </div>
-        <div class="row-name" id="lbl-name"></div>
+
+        <!-- 新系統第一列：機構｜購置日期｜使用年限 -->
+        <div class="row-header-new new-only">
+            <span class="header-org" id="lbl-org-new"></span>
+            <span class="header-date-new" id="lbl-date-new"></span>
+            <span class="header-life" id="lbl-life-new"></span>
+        </div>
+
+        <!-- 舊系統第二列：財產名稱（新系統不顯示） -->
+        <div class="row-name old-only" id="lbl-name"></div>
+
+        <!-- 別名（兩系統共用） -->
         <div class="row-alias" id="lbl-alias"></div>
-        <div class="row-info">
+
+        <!-- 新系統第三列：廠牌/型號 -->
+        <div class="row-brand new-only" id="lbl-brand"></div>
+
+        <!-- 舊系統第四列：位置｜保管人+日期 -->
+        <div class="row-info old-only">
             <div class="info-loc" id="lbl-loc"></div>
             <div class="info-right">
                 <span id="lbl-custodian"></span>
                 <span id="lbl-date"></span>
             </div>
         </div>
+
+        <!-- 新系統第四列：位置｜保管人（無日期） -->
+        <div class="row-info-new new-only">
+            <div class="info-loc" id="lbl-loc-new"></div>
+            <span id="lbl-custodian-new"></span>
+        </div>
+
+        <!-- 條碼（共用；CSS 依 data-system 決定對齊） -->
         <div class="row-barcode">
             <svg id="barcode-svg"></svg>
         </div>
+
+        <!-- 編號純文字（共用；CSS 依 data-system 決定對齊） -->
         <div class="row-small-text" id="lbl-prop-no-small"></div>
     </div>
 </div>
@@ -670,6 +749,19 @@
         if (src.indexOf('財產') !== -1) return '新系統';
         if (src.indexOf('物品') !== -1) return '舊系統';
         return src || '其他';
+    }
+
+    // 新系統（財產總表）專屬：依「財產區分」決定第一列機構名稱
+    function getOrgNameForProperty(asset) {
+        const cat = String(asset && asset.propertyCategory || '').trim();
+        if (cat === '科研基金')     return '中央研究院(轉譯中心)基';
+        if (cat === '公務用_一般')  return '中央研究院(轉譯中心)公';
+        return '中央研究院(轉譯中心)';
+    }
+
+    // 判定使用哪一套標籤版面
+    function getLabelSystem(asset) {
+        return systemLabel(asset) === '新系統' ? 'new' : 'old';
     }
 
     function getAliasDisplay(asset) {
@@ -978,14 +1070,32 @@
     // =========================================================
     function fillLabelTemplate(asset) {
         const propNo = String(asset.assetId || '');
-        $('lbl-prop-no').textContent = propNo;
-        $('lbl-prop-no-small').textContent = propNo;
-        $('lbl-life').textContent = formatUseLife(asset.useLife);
-        $('lbl-name').textContent = asset.assetName || '';
+        const sys = getLabelSystem(asset);
+
+        // 切換模板（CSS 依 data-system 顯示對應區塊、對齊條碼與編號文字）
+        document.getElementById('label-template').setAttribute('data-system', sys);
+
+        // 共用欄位
         $('lbl-alias').textContent = getAliasDisplay(asset);
-        $('lbl-loc').textContent = asset.location || '';
-        $('lbl-custodian').textContent = asset.leader || '';
-        $('lbl-date').textContent = getPurchaseDateDisplay(asset);
+        $('lbl-prop-no-small').textContent = propNo;
+
+        if (sys === 'old') {
+            // 舊系統（物品總表）— 原排版邏輯
+            $('lbl-prop-no').textContent = propNo;
+            $('lbl-life').textContent = formatUseLife(asset.useLife);
+            $('lbl-name').textContent = asset.assetName || '';
+            $('lbl-loc').textContent = asset.location || '';
+            $('lbl-custodian').textContent = asset.leader || '';
+            $('lbl-date').textContent = getPurchaseDateDisplay(asset);
+        } else {
+            // 新系統（財產總表）— 新排版
+            $('lbl-org-new').textContent       = getOrgNameForProperty(asset);
+            $('lbl-date-new').textContent      = getPurchaseDateDisplay(asset);
+            $('lbl-life-new').textContent      = formatUseLife(asset.useLife);
+            $('lbl-brand').textContent         = asset.modelBrand || '';
+            $('lbl-loc-new').textContent       = asset.location || '';
+            $('lbl-custodian-new').textContent = asset.leader || '';
+        }
 
         // 條碼：CODE128，與範例完全一致
         try {
