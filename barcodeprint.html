@@ -348,11 +348,18 @@
             white-space: nowrap;
         }
 
-        /* 第三列：財産別名 Y≈14mm */
+        /* 財産別名（兩系統共用此元素；margin-top 依系統覆寫） */
         .row-alias {
             font-size: 8pt;
-            margin-top: 0.3mm;
             white-space: nowrap;
+        }
+        /* 舊系統：第三列 Y≈14mm */
+        #label-template[data-system="old"] .row-alias {
+            margin-top: 0.3mm;
+        }
+        /* 新系統：第二列 */
+        #label-template[data-system="new"] .row-alias {
+            margin-top: 0.5mm;
         }
 
         /* 第四列：位置（左）、保管人＋日期（右） Y≈19mm */
