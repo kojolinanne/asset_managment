@@ -504,7 +504,6 @@
             <p class="subtitle">勾選資產後產出 60.06 × 30.03 mm 條碼標籤 PDF，支援批次列印。</p>
         </div>
         <div style="display:flex; gap: 8px; flex-wrap: wrap;">
-            <span id="viewScopeChip" class="chip" style="display:none;"></span>
             <a href="#" id="backToHomeLink" class="btn btn-ghost">
                 <i class="fa-solid fa-arrow-left"></i>
                 返回資產管理
@@ -846,16 +845,6 @@
             a.__search = buildSearchText(a);
             return a;
         });
-
-        // 視角 chip
-        const chip = $('viewScopeChip');
-        if (state.isAdmin) {
-            chip.style.display = '';
-            chip.textContent = `管理員視角（全部 ${state.assets.length} 筆）`;
-        } else {
-            chip.style.display = '';
-            chip.textContent = `我的資產（${state.assets.length} 筆）`;
-        }
 
         populateFilters();
         applyFilters();
