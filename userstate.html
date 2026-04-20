@@ -11085,14 +11085,16 @@
 
                                 <div className="p-4">
                                     {videoEmbedUrl ? (
-                                        <div className="relative w-full rounded-2xl overflow-hidden bg-slate-950 shadow-inner" style={{ paddingTop: '56.25%' }}>
-                                            <iframe
-                                                src={videoEmbedUrl}
-                                                title="操作說明影片"
-                                                className="absolute inset-0 h-full w-full border-0"
-                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                                allowFullScreen
-                                            />
+                                        <div className="mx-auto w-full max-w-[75%]">
+                                            <div className="relative w-full rounded-2xl overflow-hidden bg-slate-950 shadow-inner" style={{ paddingTop: '56.25%' }}>
+                                                <iframe
+                                                    src={videoEmbedUrl}
+                                                    title="操作說明影片"
+                                                    className="absolute inset-0 h-full w-full border-0"
+                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                                    allowFullScreen
+                                                />
+                                            </div>
                                         </div>
                                     ) : (
                                         <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
