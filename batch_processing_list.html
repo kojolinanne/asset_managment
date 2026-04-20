@@ -754,12 +754,40 @@
       BatchList_showToast('批次功能尚未就緒，請稍後再試', 'warning');
       return;
     }
-    try {
-      bridge.handlers[action]();
-    } catch (err) {
-      console.error('[BatchList] 批次動作執行失敗', err);
-      BatchList_showToast('批次動作執行失敗', 'error');
-    }
+
+    // 先收合購物車側欄與遮罩，讓彈出的 modal 取得焦點
+    const sidebar = document.getElementById('BatchList_sidebar');
+    const overlay = document.getElementById('BatchList_overlay');
+    if (sidebar) sidebar.classList.remove('active');
+    if (overlay) overlay.classList.remove('active');
+    if (btn && typeof btn.blur === 'function') btn.blur();
+
+    // 等側欄關閉動畫開始後再觸發 handler，避免焦點被側欄搶回
+    setTimeout(() => {
+      try {
+        bridge.handlers[action]();
+
+        // modal 打開後主動把焦點轉到 modal 容器
+        setTimeout(() => {
+          const modalRoot = document.querySelector(
+            '[role="dialog"][aria-modal="true"], .fixed.inset-0 [role="dialog"], .fixed.inset-0.z-50, .modal.show, .modal-container'
+          );
+          if (!modalRoot) return;
+          const focusable = modalRoot.querySelector(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          );
+          if (focusable && typeof focusable.focus === 'function') {
+            focusable.focus();
+          } else if (typeof modalRoot.focus === 'function') {
+            if (!modalRoot.hasAttribute('tabindex')) modalRoot.setAttribute('tabindex', '-1');
+            modalRoot.focus();
+          }
+        }, 120);
+      } catch (err) {
+        console.error('[BatchList] 批次動作執行失敗', err);
+        BatchList_showToast('批次動作執行失敗', 'error');
+      }
+    }, 50);
   }
 
   document.addEventListener('DOMContentLoaded', () => {
