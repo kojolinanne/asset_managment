@@ -1346,6 +1346,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
 
     <div id="react-root"></div>
+    <template id="operationManualSrcDocTemplate"><?!= include('operation_manual_srcdoc'); ?></template>
 
     <!-- Bootstrap Modals (保留現有結構) -->
     <div class="modal fade" id="duplicateAssetsModal" tabindex="-1" role="dialog" aria-labelledby="duplicateAssetsTitle" aria-hidden="true">
@@ -2118,12 +2119,33 @@
         // GAS sandbox iframe 內 window.location.href 並非部署網址，需向後端取得
         // 預先快取供按鈕同步取用（避免 google.script.run 的 async callback 被 popup blocker 擋）
         let __WEB_APP_URL = '';
-        let __OPERATION_MANUAL_URL = '';
+        const USERSTATE_PAGE_URLS_EVENT = 'userstate:page-urls-ready';
+        const __USERSTATE_PAGE_URLS = {
+            webAppUrl: '',
+            operationManualUrl: '',
+            operationManualPdfDownloadUrl: '',
+            operationManualVideoYoutubeUrl: '',
+            operationManualVideoDriveUrl: ''
+        };
+        const operationManualSrcDocTemplate = document.getElementById('operationManualSrcDocTemplate');
+        const __OPERATION_MANUAL_SRCDOC = operationManualSrcDocTemplate
+            ? operationManualSrcDocTemplate.innerHTML.trim()
+            : '';
         try {
             google.script.run
                 .withSuccessHandler((urls) => {
-                    if (urls?.webAppUrl) __WEB_APP_URL = urls.webAppUrl;
-                    if (urls?.operationManualUrl) __OPERATION_MANUAL_URL = urls.operationManualUrl;
+                    const nextUrls = {
+                        webAppUrl: urls?.webAppUrl || '',
+                        operationManualUrl: urls?.operationManualUrl || '',
+                        operationManualPdfDownloadUrl: urls?.operationManualPdfDownloadUrl || '',
+                        operationManualVideoYoutubeUrl: urls?.operationManualVideoYoutubeUrl || '',
+                        operationManualVideoDriveUrl: urls?.operationManualVideoDriveUrl || ''
+                    };
+                    __WEB_APP_URL = nextUrls.webAppUrl || '';
+                    Object.assign(__USERSTATE_PAGE_URLS, nextUrls);
+                    window.dispatchEvent(new CustomEvent(USERSTATE_PAGE_URLS_EVENT, {
+                        detail: { ...nextUrls }
+                    }));
                 })
                 .withFailureHandler(() => {})
                 .getUserStatePageUrls();
@@ -2136,6 +2158,59 @@
             INVENTORY: '盤點',
             INVENTORY_RESET: '取消確認',
             NONE: '未指定'
+        };
+
+        const normalizeYouTubeEmbedUrl = (value) => {
+            const raw = String(value || '').trim();
+            if (!raw) return '';
+
+            try {
+                const url = new URL(raw);
+                const hostname = url.hostname.toLowerCase().replace(/^www\./, '');
+                let videoId = '';
+
+                if (hostname === 'youtu.be') {
+                    videoId = url.pathname.replace(/^\/+/, '').split('/')[0];
+                } else if (hostname === 'youtube.com' || hostname === 'm.youtube.com') {
+                    if (url.pathname === '/watch') {
+                        videoId = url.searchParams.get('v') || '';
+                    } else if (url.pathname.startsWith('/embed/')) {
+                        videoId = url.pathname.split('/')[2] || '';
+                    } else if (url.pathname.startsWith('/shorts/')) {
+                        videoId = url.pathname.split('/')[2] || '';
+                    }
+                }
+
+                if (!videoId) return raw;
+                return `https://www.youtube.com/embed/${videoId}`;
+            } catch (error) {
+                return raw;
+            }
+        };
+
+        const normalizeDrivePreviewUrl = (value) => {
+            const raw = String(value || '').trim();
+            if (!raw) return '';
+
+            try {
+                const url = new URL(raw);
+                const hostname = url.hostname.toLowerCase().replace(/^www\./, '');
+                if (hostname !== 'drive.google.com') return raw;
+
+                const fileMatch = url.pathname.match(/\/file\/d\/([^/]+)/);
+                if (fileMatch && fileMatch[1]) {
+                    return `https://drive.google.com/file/d/${fileMatch[1]}/preview`;
+                }
+
+                const fileId = url.searchParams.get('id');
+                if (fileId) {
+                    return `https://drive.google.com/file/d/${fileId}/preview`;
+                }
+
+                return raw;
+            } catch (error) {
+                return raw;
+            }
         };
 
         const INVENTORY_STATUS_LABELS = {
@@ -10914,6 +10989,180 @@
             );
         };
 
+        const OperationManualModal = ({ onClose, pageUrls, manualSrcDoc }) => {
+            const iframeRef = useRef(null);
+            const [manualFrameHeight, setManualFrameHeight] = useState(1200);
+
+            const pdfDownloadUrl = String(pageUrls?.operationManualPdfDownloadUrl || '').trim();
+            const youtubeEmbedUrl = useMemo(
+                () => normalizeYouTubeEmbedUrl(pageUrls?.operationManualVideoYoutubeUrl),
+                [pageUrls?.operationManualVideoYoutubeUrl]
+            );
+            const drivePreviewUrl = useMemo(
+                () => normalizeDrivePreviewUrl(pageUrls?.operationManualVideoDriveUrl),
+                [pageUrls?.operationManualVideoDriveUrl]
+            );
+            const videoEmbedUrl = youtubeEmbedUrl || drivePreviewUrl || '';
+
+            const resizeManualFrame = useCallback(() => {
+                const iframe = iframeRef.current;
+                if (!iframe) return;
+
+                try {
+                    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+                    if (!doc) return;
+                    const bodyHeight = doc.body ? doc.body.scrollHeight : 0;
+                    const documentHeight = doc.documentElement ? doc.documentElement.scrollHeight : 0;
+                    const nextHeight = Math.max(bodyHeight, documentHeight, 1200);
+                    setManualFrameHeight(Math.min(nextHeight, 6000));
+                } catch (error) {
+                    console.warn('操作說明內容高度調整失敗：', error);
+                }
+            }, []);
+
+            const handleFrameLoad = useCallback(() => {
+                resizeManualFrame();
+                setTimeout(resizeManualFrame, 200);
+                setTimeout(resizeManualFrame, 800);
+            }, [resizeManualFrame]);
+
+            useEffect(() => {
+                const previousOverflow = document.body.style.overflow;
+                const handleKeyDown = (event) => {
+                    if (event.key === 'Escape') {
+                        onClose();
+                    }
+                };
+
+                document.body.style.overflow = 'hidden';
+                document.addEventListener('keydown', handleKeyDown);
+                return () => {
+                    document.body.style.overflow = previousOverflow;
+                    document.removeEventListener('keydown', handleKeyDown);
+                };
+            }, [onClose]);
+
+            return (
+                <div
+                    className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4"
+                    onClick={onClose}
+                >
+                    <div
+                        className="bg-slate-50 rounded-2xl shadow-2xl w-full max-w-6xl max-h-[92vh] overflow-hidden border border-slate-200"
+                        onClick={(event) => event.stopPropagation()}
+                    >
+                        <div className="px-5 py-4 sm:px-6 border-b border-slate-200 bg-white flex items-start justify-between gap-4">
+                            <div>
+                                <h3 className="text-lg sm:text-xl font-semibold text-slate-900 flex items-center gap-2">
+                                    <i className="fa-solid fa-book-open text-sky-600"></i>
+                                    操作說明
+                                </h3>
+                                <p className="text-sm text-slate-500 mt-1">影片教學、操作手冊與 PDF 下載整合在同一個彈窗中。</p>
+                            </div>
+                            <button
+                                onClick={onClose}
+                                className="w-10 h-10 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-colors flex items-center justify-center"
+                                title="關閉操作說明"
+                            >
+                                <i className="fas fa-times text-lg"></i>
+                            </button>
+                        </div>
+
+                        <div className="overflow-y-auto max-h-[calc(92vh-82px)] px-4 py-4 sm:px-6 sm:py-5 space-y-6">
+                            <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                                <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+                                    <div>
+                                        <div className="text-sm font-semibold text-slate-800">教學影片</div>
+                                        <div className="text-xs text-slate-500">優先播放 YouTube，若未設定則退回 Google Drive 預覽。</div>
+                                    </div>
+                                    {videoEmbedUrl && (
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-medium text-sky-700">
+                                            <i className="fa-solid fa-circle-play"></i>
+                                            {youtubeEmbedUrl ? 'YouTube' : 'Google Drive'}
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div className="p-4">
+                                    {videoEmbedUrl ? (
+                                        <div className="relative w-full rounded-2xl overflow-hidden bg-slate-950 shadow-inner" style={{ paddingTop: '56.25%' }}>
+                                            <iframe
+                                                src={videoEmbedUrl}
+                                                title="操作說明影片"
+                                                className="absolute inset-0 h-full w-full border-0"
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                                allowFullScreen
+                                            />
+                                        </div>
+                                    ) : (
+                                        <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
+                                            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-200 text-slate-500">
+                                                <i className="fa-solid fa-film text-xl"></i>
+                                            </div>
+                                            <div className="text-sm font-medium text-slate-700">尚未設定教學影片</div>
+                                            <p className="text-sm text-slate-500 mt-2">請在 `env.js` 補上 YouTube 或 Google Drive 的影片連結。</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </section>
+
+                            <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                                <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
+                                    <div className="text-sm font-semibold text-slate-800">操作手冊內容</div>
+                                    <div className="text-xs text-slate-500 mt-1">內容來自 `example/manual_exp.html` 的嵌入版本。</div>
+                                </div>
+                                <div className="bg-white">
+                                    {manualSrcDoc ? (
+                                        <iframe
+                                            ref={iframeRef}
+                                            title="操作手冊內容"
+                                            srcDoc={manualSrcDoc}
+                                            className="w-full border-0 bg-white"
+                                            style={{ height: `${manualFrameHeight}px` }}
+                                            onLoad={handleFrameLoad}
+                                        />
+                                    ) : (
+                                        <div className="px-6 py-10 text-center text-sm text-slate-500">
+                                            找不到操作手冊範例內容，請確認模板檔案是否存在。
+                                        </div>
+                                    )}
+                                </div>
+                            </section>
+
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 pt-1">
+                                <button
+                                    onClick={onClose}
+                                    className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-colors"
+                                >
+                                    關閉
+                                </button>
+                                {pdfDownloadUrl ? (
+                                    <a
+                                        href={pdfDownloadUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 text-white hover:bg-sky-700 transition-colors shadow-sm"
+                                    >
+                                        <i className="fa-solid fa-file-arrow-down"></i>
+                                        下載 PDF 操作手冊
+                                    </a>
+                                ) : (
+                                    <button
+                                        disabled
+                                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-200 text-slate-400 cursor-not-allowed"
+                                        title="尚未設定 PDF 下載連結"
+                                    >
+                                        <i className="fa-solid fa-file-arrow-down"></i>
+                                        尚未設定 PDF 下載
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         // ========== 新增資產 Modal ==========
         const AddAssetModal = ({ onClose, onSuccess, preloadedData }) => {
             // 載入與提交狀態
@@ -12519,6 +12768,8 @@
             const [currentUserEmail, setCurrentUserEmail] = useState('');
             const [currentUserName, setCurrentUserName] = useState('');
             const [webAppUrl, setWebAppUrl] = useState('');
+            const [showOperationManualModal, setShowOperationManualModal] = useState(false);
+            const [userStatePageUrls, setUserStatePageUrls] = useState(() => ({ ...__USERSTATE_PAGE_URLS }));
             const [pendingApprovalsData, setPendingApprovalsData] = useState([]);
             const [inventorySessions, setInventorySessions] = useState(null);
             const INITIAL_FILTERS = {
@@ -14185,6 +14436,20 @@
                 };
             }, []);
 
+            useEffect(() => {
+                const handlePageUrlsReady = (event) => {
+                    setUserStatePageUrls(prev => ({
+                        ...prev,
+                        ...(event.detail || {})
+                    }));
+                };
+
+                window.addEventListener(USERSTATE_PAGE_URLS_EVENT, handlePageUrlsReady);
+                return () => {
+                    window.removeEventListener(USERSTATE_PAGE_URLS_EVENT, handlePageUrlsReady);
+                };
+            }, []);
+
             // 同步狀態到全域變數供 jQuery Modal 使用
             useEffect(() => {
                 window.pendingApprovals = pendingApprovalsData;
@@ -15603,15 +15868,9 @@
 
                                 {/* 操作說明書按鈕 */}
                                 <button
-                                    onClick={() => {
-                                        if (!__OPERATION_MANUAL_URL) {
-                                            alert('尚未設定操作說明書連結，請聯絡管理員。');
-                                            return;
-                                        }
-                                        window.open(__OPERATION_MANUAL_URL, '_blank');
-                                    }}
+                                    onClick={() => setShowOperationManualModal(true)}
                                     className="hero-btn hero-btn--ghost"
-                                    title="開啟操作說明書"
+                                    title="開啟操作說明"
                                 >
                                     <i className="fa-solid fa-book text-slate-500"></i>
                                     <span className="hidden sm:inline">操作說明</span>
@@ -15863,6 +16122,14 @@
                           setIsLoadingPendingInventory(false);
                         }}
                       />
+                    )}
+
+                    {showOperationManualModal && (
+                        <OperationManualModal
+                            onClose={() => setShowOperationManualModal(false)}
+                            pageUrls={userStatePageUrls}
+                            manualSrcDoc={__OPERATION_MANUAL_SRCDOC}
+                        />
                     )}
 
                     {/* 快速操作 Modal */}

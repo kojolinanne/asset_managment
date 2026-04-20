@@ -33,4 +33,7 @@ const FAB_URL_ISMS_CONNECT = ISMS_CONNECT_ASSET_WEB_APP_URL + "?page=connect";  
 const FAB_URL_SOFTWARE_LIST = ISMS_CONNECT_ASSET_WEB_APP_URL + "?page=softwarelist"; // 軟體清冊
 
 // --- ✨ 使用者頁面操作說明書 ---
-const USERSTATE_OPERATION_MANUAL_URL = "https://drive.google.com/file/d/YOUR_PDF_FILE_ID/view"; // ⚠️ 請替換成操作說明書連結
+const USERSTATE_OPERATION_MANUAL_URL = "https://drive.google.com/file/d/YOUR_PDF_FILE_ID/view"; // ⚠️ 舊版操作說明書連結（保留供相容 fallback）
+const USERSTATE_OPERATION_MANUAL_PDF_DOWNLOAD_URL = ""; // ⚠️ 請替換成 PDF 直接下載連結
+const USERSTATE_OPERATION_MANUAL_VIDEO_YOUTUBE_URL = ""; // ⚠️ 請替換成 YouTube 影片連結
+const USERSTATE_OPERATION_MANUAL_VIDEO_DRIVE_URL = ""; // ⚠️ 請替換成 Google Drive 影片連結

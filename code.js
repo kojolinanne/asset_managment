@@ -1173,13 +1173,25 @@ function getAppUrl() {
   return ScriptApp.getService().getUrl();
 }
 
+function sanitizeOptionalUrl_(value) {
+  var raw = String(value || '').trim();
+  if (!raw) return '';
+  if (raw.indexOf('YOUR_') !== -1) return '';
+  return raw;
+}
+
 /**
  * 取得 userstate.html 需要的頁面連結
  */
 function getUserStatePageUrls() {
+  var fallbackManualUrl = sanitizeOptionalUrl_(USERSTATE_OPERATION_MANUAL_URL);
+  var pdfDownloadUrl = sanitizeOptionalUrl_(USERSTATE_OPERATION_MANUAL_PDF_DOWNLOAD_URL) || fallbackManualUrl;
   return {
     webAppUrl: ScriptApp.getService().getUrl(),
-    operationManualUrl: USERSTATE_OPERATION_MANUAL_URL || ''
+    operationManualUrl: fallbackManualUrl,
+    operationManualPdfDownloadUrl: pdfDownloadUrl,
+    operationManualVideoYoutubeUrl: sanitizeOptionalUrl_(USERSTATE_OPERATION_MANUAL_VIDEO_YOUTUBE_URL),
+    operationManualVideoDriveUrl: sanitizeOptionalUrl_(USERSTATE_OPERATION_MANUAL_VIDEO_DRIVE_URL)
   };
 }
 
