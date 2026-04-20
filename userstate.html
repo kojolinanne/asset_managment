@@ -2118,11 +2118,15 @@
         // GAS sandbox iframe 內 window.location.href 並非部署網址，需向後端取得
         // 預先快取供按鈕同步取用（避免 google.script.run 的 async callback 被 popup blocker 擋）
         let __WEB_APP_URL = '';
+        let __OPERATION_MANUAL_URL = '';
         try {
             google.script.run
-                .withSuccessHandler((url) => { if (url) __WEB_APP_URL = url; })
+                .withSuccessHandler((urls) => {
+                    if (urls?.webAppUrl) __WEB_APP_URL = urls.webAppUrl;
+                    if (urls?.operationManualUrl) __OPERATION_MANUAL_URL = urls.operationManualUrl;
+                })
                 .withFailureHandler(() => {})
-                .getAppUrl();
+                .getUserStatePageUrls();
         } catch (e) { /* ignore */ }
 
         const ACTION_LABELS = {
@@ -15599,7 +15603,13 @@
 
                                 {/* 操作說明書按鈕 */}
                                 <button
-                                    onClick={() => window.open('https://drive.google.com/file/d/YOUR_PDF_FILE_ID/view', '_blank')}
+                                    onClick={() => {
+                                        if (!__OPERATION_MANUAL_URL) {
+                                            alert('尚未設定操作說明書連結，請聯絡管理員。');
+                                            return;
+                                        }
+                                        window.open(__OPERATION_MANUAL_URL, '_blank');
+                                    }}
                                     className="hero-btn hero-btn--ghost"
                                     title="開啟操作說明書"
                                 >

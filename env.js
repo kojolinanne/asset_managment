@@ -31,3 +31,6 @@ const ISMS_CONNECT_ASSET_WEB_APP_URL = "https://script.google.com/a/macros/as.ed
 const FAB_URL_ISMS_ASSET = ISMS_CONNECT_ASSET_WEB_APP_URL;                      // 資訊資產清單
 const FAB_URL_ISMS_CONNECT = ISMS_CONNECT_ASSET_WEB_APP_URL + "?page=connect";   // 資產對照管理
 const FAB_URL_SOFTWARE_LIST = ISMS_CONNECT_ASSET_WEB_APP_URL + "?page=softwarelist"; // 軟體清冊
+
+// --- ✨ 使用者頁面操作說明書 ---
+const USERSTATE_OPERATION_MANUAL_URL = "https://drive.google.com/file/d/YOUR_PDF_FILE_ID/view"; // ⚠️ 請替換成操作說明書連結

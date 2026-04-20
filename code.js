@@ -1174,6 +1174,16 @@ function getAppUrl() {
 }
 
 /**
+ * 取得 userstate.html 需要的頁面連結
+ */
+function getUserStatePageUrls() {
+  return {
+    webAppUrl: ScriptApp.getService().getUrl(),
+    operationManualUrl: USERSTATE_OPERATION_MANUAL_URL || ''
+  };
+}
+
+/**
  * 取得浮動按鈕導航連結（供 userstate.html FAB 使用）
  */
 function getFabNavigationUrls() {
