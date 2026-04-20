@@ -15940,35 +15940,28 @@
         </svg>
       </button>
       <div class="fab-menu" id="fabMenu">
-        <!-- 子按鈕 1：資訊資產清單 -->
+        <!-- 子按鈕 1：資訊資產清單（URL 由 env.js 的 FAB_URL_ISMS_ASSET 透過 getFabNavigationUrls() 注入） -->
         <a class="fab-nav-item" id="fabLinkIsmsAsset" href="#" target="_blank">
           <span class="fab-nav-label">資訊資產清單</span>
           <span class="fab-nav-btn" style="background: linear-gradient(135deg, #2f6c7f, #1e5568);">
             <i class="fa-solid fa-list-check"></i>
           </span>
         </a>
-        <!-- 子按鈕 2：資產對照管理 -->
+        <!-- 子按鈕 2：資產對照管理（URL 由 env.js 的 FAB_URL_ISMS_CONNECT 透過 getFabNavigationUrls() 注入） -->
         <a class="fab-nav-item" id="fabLinkIsmsConnect" href="#" target="_blank">
           <span class="fab-nav-label">資產對照管理</span>
           <span class="fab-nav-btn" style="background: linear-gradient(135deg, #0891b2, #0e7490);">
             <i class="fa-solid fa-link"></i>
           </span>
         </a>
-        <!-- 子按鈕 3：軟體清冊 -->
+        <!-- 子按鈕 3：軟體清冊（URL 由 env.js 的 FAB_URL_SOFTWARE_LIST 透過 getFabNavigationUrls() 注入） -->
         <a class="fab-nav-item" id="fabLinkSoftware" href="#" target="_blank">
           <span class="fab-nav-label">軟體清冊</span>
           <span class="fab-nav-btn" style="background: linear-gradient(135deg, #7c3aed, #6d28d9);">
             <i class="fa-solid fa-compact-disc"></i>
           </span>
         </a>
-        <!-- 子按鈕 4：資產試算表 -->
-        <a class="fab-nav-item" id="fabLinkSheet" href="#" target="_blank">
-          <span class="fab-nav-label">資產試算表</span>
-          <span class="fab-nav-btn" style="background: linear-gradient(135deg, #d97706, #b45309);">
-            <i class="fa-solid fa-table"></i>
-          </span>
-        </a>
-        <!-- 子按鈕 5：列印條碼 -->
+        <!-- 子按鈕 4：列印條碼（動態 URL，主專案內頁） -->
         <a class="fab-nav-item" id="fabLinkBarcodePrint" href="#" target="_blank">
           <span class="fab-nav-label">列印條碼</span>
           <span class="fab-nav-btn" style="background: linear-gradient(135deg, #059669, #047857);">
@@ -15983,13 +15976,13 @@
       'use strict';
 
       // ===== 設定快速導航連結（僅管理員可見 FAB） =====
+      // 所有 URL 皆由後端 getFabNavigationUrls() 提供（子專案 URL 定義於 env.js）。
       google.script.run
         .withSuccessHandler(function(urls) {
           if (!urls || !urls.isAdmin) return; // 非管理員不顯示 FAB
           if (urls.ismsAssetUrl)    document.getElementById('fabLinkIsmsAsset').href = urls.ismsAssetUrl;
           if (urls.ismsConnectUrl)  document.getElementById('fabLinkIsmsConnect').href = urls.ismsConnectUrl;
           if (urls.softwareListUrl) document.getElementById('fabLinkSoftware').href = urls.softwareListUrl;
-          if (urls.sheetUrl)        document.getElementById('fabLinkSheet').href = urls.sheetUrl;
           if (urls.barcodePrintUrl) document.getElementById('fabLinkBarcodePrint').href = urls.barcodePrintUrl;
           document.getElementById('fabContainer').style.display = '';
         })

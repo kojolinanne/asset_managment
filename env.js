@@ -24,3 +24,10 @@ const ISMS_SPREADSHEET_ID = "YOUR_ISMS_SPREADSHEET_ID_HERE"; // ⚠️ 請替換
 const ISMS_ASSET_SHEET_NAME = "資訊資產清單";                   // ISMS 資訊資產清單工作表名稱
 const ISMS_MAPPING_SHEET_NAME = "資產對照表";                   // 資產對照表工作表名稱
 const ISMS_DROPDOWN_SHEET_NAME = "下拉選單";                     // ISMS 試算表內的下拉選單工作表
+
+// --- ✨ **新增**：FAB 子專案導航連結（isms-connect-asset 子專案 Web App 部署 URL） ---
+// 基底 URL；子頁面由 code.js 以 query string 組合（?page=connect, ?page=softwarelist）
+const ISMS_CONNECT_ASSET_WEB_APP_URL = "https://script.google.com/a/macros/as.edu.tw/s/cby35pdL21bTuxFR/exec";
+const FAB_URL_ISMS_ASSET = ISMS_CONNECT_ASSET_WEB_APP_URL;                      // 資訊資產清單
+const FAB_URL_ISMS_CONNECT = ISMS_CONNECT_ASSET_WEB_APP_URL + "?page=connect";   // 資產對照管理
+const FAB_URL_SOFTWARE_LIST = ISMS_CONNECT_ASSET_WEB_APP_URL + "?page=softwarelist"; // 軟體清冊
