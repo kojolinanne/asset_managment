@@ -11725,11 +11725,13 @@
         };
 
         // ========== 編輯資產 Modal（僅管理員）==========
-        const EditAssetModal = ({ asset, onClose, onSuccess, ismsAssets = [], ismsEnabled = false, onIsmsAssetCreated }) => {
+        const EditAssetModal = ({ asset, onClose, onSuccess, ismsAssets = [], ismsEnabled = false, onIsmsAssetCreated, preloadedDropdownData = null }) => {
             // 載入與提交狀態
-            const [isLoading, setIsLoading] = useState(true);
+            const [isLoading, setIsLoading] = useState(!preloadedDropdownData);
             const [isSubmitting, setIsSubmitting] = useState(false);
-            const [categories, setCategories] = useState([]);
+            const [categories, setCategories] = useState(
+                Array.isArray(preloadedDropdownData?.categories) ? preloadedDropdownData.categories : []
+            );
 
             // 表單狀態（從 asset prop 載入初始值）
             const [assetName, setAssetName] = useState(asset?.assetName || '');
@@ -11780,17 +11782,32 @@
 
             // 載入類別選項
             useEffect(() => {
+                let isMounted = true;
+
+                if (preloadedDropdownData) {
+                    setCategories(Array.isArray(preloadedDropdownData?.categories) ? preloadedDropdownData.categories : []);
+                    setIsLoading(false);
+                } else {
+                    setIsLoading(true);
+                }
+
                 google.script.run
                     .withSuccessHandler((data) => {
-                        setCategories(data.categories || []);
+                        if (!isMounted) return;
+                        setCategories(Array.isArray(data?.categories) ? data.categories : []);
                         setIsLoading(false);
                     })
                     .withFailureHandler((error) => {
+                        if (!isMounted) return;
                         console.error('載入類別資料失敗：', error);
                         setIsLoading(false);
                     })
                     .getDropdownData();
-            }, []);
+
+                return () => {
+                    isMounted = false;
+                };
+            }, [preloadedDropdownData]);
 
             // 資訊資產連動邏輯：取消主選項時清空子選項與已選 ISMS 資訊資產
             useEffect(() => {
@@ -15930,6 +15947,7 @@
                             ismsAssets={ismsAssets}
                             ismsEnabled={ismsEnabled}
                             onIsmsAssetCreated={handleIsmsAssetCreated}
+                            preloadedDropdownData={addAssetDropdownData}
                         />
                     )}
 
