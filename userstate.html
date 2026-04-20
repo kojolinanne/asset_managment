@@ -2151,12 +2151,10 @@
         const normalizeInventoryInitialResult = (value) => {
             const normalized = String(value || '').trim();
             const allowedResults = new Set(Object.values(INVENTORY_STATUS_LABELS));
-            return allowedResults.has(normalized)
-                ? normalized
-                : INVENTORY_STATUS_LABELS.NORMAL;
+            return allowedResults.has(normalized) ? normalized : '';
         };
 
-        const createInventoryFormDefaults = ({ asset, isBatch = false, initialResult = INVENTORY_STATUS_LABELS.NORMAL }) => {
+        const createInventoryFormDefaults = ({ asset, isBatch = false, initialResult = '' }) => {
             const isItAsset = !isBatch && !!asset && String(asset.isItAsset || '').trim() === '是';
             return {
                 result: normalizeInventoryInitialResult(initialResult),
@@ -2446,7 +2444,7 @@
             );
         };
 
-        const useInventoryFormState = ({ asset, isBatch = false, ismsAssets = [], ismsEnabled = false, initialResult = INVENTORY_STATUS_LABELS.NORMAL, resetKey = '' }) => {
+        const useInventoryFormState = ({ asset, isBatch = false, ismsAssets = [], ismsEnabled = false, initialResult = '', resetKey = '' }) => {
             const defaults = useMemo(() => createInventoryFormDefaults({ asset, isBatch, initialResult }), [
                 asset?.assetId,
                 asset?.isItAsset,
@@ -5868,7 +5866,7 @@
         const ActionPanel = ({ asset, displayMode = 'modal', hasInventoryTask, inventoryStatusLabel, ismsAssets = [], ismsEnabled = false, onSelectAction, onSelectInventory, onClose, onIsmsAssetCreated }) => {
             const hasAsset = Boolean(asset && asset.assetId);
             const [panelView, setPanelView] = useState('actions');
-            const [inventoryInitialResult, setInventoryInitialResult] = useState(INVENTORY_STATUS_LABELS.NORMAL);
+            const [inventoryInitialResult, setInventoryInitialResult] = useState('');
             const inventoryForm = useInventoryFormState({
                 asset,
                 isBatch: false,
@@ -5883,7 +5881,7 @@
                 setPanelView(hasInventoryTask ? 'inventory' : 'actions');
             }, [asset?.assetId, hasInventoryTask, inventoryStatusLabel]);
 
-            const openInventorySettings = useCallback((status = INVENTORY_STATUS_LABELS.NORMAL) => {
+            const openInventorySettings = useCallback((status = '') => {
                 if (!hasAsset) return;
                 if (!hasInventoryTask) {
                     if (typeof window.BatchList_showToast === 'function') {
@@ -5899,6 +5897,14 @@
 
             const handleInventorySubmit = useCallback(() => {
                 if (!hasAsset || typeof onSelectInventory !== 'function') return;
+                if (!inventoryForm.result) {
+                    if (typeof window.BatchList_showToast === 'function') {
+                        window.BatchList_showToast('請選擇盤點結果', 'warning');
+                    } else {
+                        alert('請選擇盤點結果');
+                    }
+                    return;
+                }
                 onSelectInventory({
                     assetIds: [asset.assetId],
                     status: inventoryForm.result,
@@ -11971,7 +11977,7 @@
         };
 
         // ========== 盤點確認 Modal（單筆/批次共用，含 ISMS 資訊資產分類）==========
-            const InventoryConfirmModal = ({ asset, assetIds, isBatch, sessionCount, submitMode = 'submit', initialResult = INVENTORY_STATUS_LABELS.NORMAL, onQueue, onClose, onSuccess, ismsAssets: ismsAssetsProp, ismsEnabled: ismsEnabledProp, onIsmsAssetCreated }) => {
+            const InventoryConfirmModal = ({ asset, assetIds, isBatch, sessionCount, submitMode = 'submit', initialResult = '', onQueue, onClose, onSuccess, ismsAssets: ismsAssetsProp, ismsEnabled: ismsEnabledProp, onIsmsAssetCreated }) => {
             const [isSubmitting, setIsSubmitting] = useState(false);
             const [isResetting, setIsResetting] = useState(false);
             const normalizedSessionCount = typeof sessionCount === 'number' ? sessionCount : 0;
@@ -12000,6 +12006,10 @@
             };
 
             const handleSubmit = () => {
+                if (!result) {
+                    alert('請選擇盤點結果');
+                    return;
+                }
                 if (isQueueMode) {
                     const queueAssetIds = isBatch ? (assetIds || []) : [asset?.assetId];
                     const normalizedAssetIds = queueAssetIds
@@ -12338,7 +12348,7 @@
             const [currentInventorySessionId, setCurrentInventorySessionId] = useState(null);
             const [showInventoryModal, setShowInventoryModal] = useState(false);
             const [inventoryModalAsset, setInventoryModalAsset] = useState(null); // 單筆盤點
-            const [inventoryModalInitialResult, setInventoryModalInitialResult] = useState(INVENTORY_STATUS_LABELS.NORMAL);
+            const [inventoryModalInitialResult, setInventoryModalInitialResult] = useState('');
             const [inventoryModalSessionCount, setInventoryModalSessionCount] = useState(0);
             const [showBatchInventoryModal, setShowBatchInventoryModal] = useState(false);
             const [selectedInventoryAssetIds, setSelectedInventoryAssetIds] = useState([]);
@@ -15689,7 +15699,7 @@
                             onClose={() => {
                                 setShowInventoryModal(false);
                                 setInventoryModalAsset(null);
-                                setInventoryModalInitialResult(INVENTORY_STATUS_LABELS.NORMAL);
+                                setInventoryModalInitialResult('');
                                 setInventoryModalSessionCount(0);
                             }}
                             onSuccess={handleInventorySuccess}
