@@ -2101,13 +2101,18 @@
       position: fixed;
       z-index: 9999;
       bottom: 32px;
-      right: 32px;
+      left: 32px;
       display: flex;
       flex-direction: column-reverse;
       align-items: center;
       gap: 0;
       user-select: none;
       touch-action: none;
+      /* 容器本身不攔截點擊；互動僅透過 .fab-main 與展開後的 .fab-menu */
+      pointer-events: none;
+    }
+    .fab-container .fab-main {
+      pointer-events: auto;
     }
 
     /* 主按鈕 */
