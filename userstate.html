@@ -5309,7 +5309,7 @@
         };
 
         // FilterSection 組件
-        const FilterSection = ({ filters, onFilterChange, allAssets, exportCount = 0, isExporting = false, onExportExcel, onExportCsv }) => {
+        const FilterSection = ({ filters, onFilterChange, onResetFilters, allAssets, exportCount = 0, isExporting = false, onExportExcel, onExportCsv }) => {
             // ✨ Debounce 機制：本地搜尋狀態（即時更新輸入框）
             const [localSearch, setLocalSearch] = useState(filters.search);
             const debounceTimerRef = useRef(null);
@@ -5657,6 +5657,28 @@
                 );
             };
 
+            // 是否有任一篩選條件啟用（搜尋字、單選、多選皆納入判斷）
+            const hasActiveFilter = useMemo(() => {
+                if (!filters) return false;
+                if ((filters.search || '').trim() !== '') return true;
+                if ((filters.category || '').trim() !== '') return true;
+                if ((filters.systemCategory || '').trim() !== '') return true;
+                const multiKeys = ['status', 'leader', 'user', 'group', 'location'];
+                return multiKeys.some(key => Array.isArray(filters[key]) && filters[key].length > 0);
+            }, [filters]);
+
+            const handleResetAllFilters = useCallback(() => {
+                // 防止 debounce timer 之後把舊搜尋字寫回
+                if (debounceTimerRef.current) {
+                    clearTimeout(debounceTimerRef.current);
+                    debounceTimerRef.current = null;
+                }
+                setLocalSearch('');
+                if (typeof onResetFilters === 'function') {
+                    onResetFilters();
+                }
+            }, [onResetFilters]);
+
             return (
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
                     <div className="flex flex-col gap-4">
@@ -5665,6 +5687,21 @@
                                 已篩選 <span className="font-semibold text-slate-800">{totalExportCount}</span> 筆
                             </div>
                             <div className="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    onClick={handleResetAllFilters}
+                                    disabled={!hasActiveFilter}
+                                    className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                                        hasActiveFilter
+                                            ? 'border-slate-300 text-slate-700 bg-white hover:bg-slate-50'
+                                            : 'border-slate-200 text-slate-400 bg-slate-50 cursor-not-allowed'
+                                    }`}
+                                    title={hasActiveFilter ? '清除所有篩選與搜尋字' : '目前沒有套用的篩選'}
+                                    aria-label="清除篩選"
+                                >
+                                    <i className="fa-solid fa-filter-circle-xmark"></i>
+                                    清除篩選
+                                </button>
                                 <button
                                     type="button"
                                     onClick={onExportExcel}
@@ -12281,7 +12318,7 @@
             const [webAppUrl, setWebAppUrl] = useState('');
             const [pendingApprovalsData, setPendingApprovalsData] = useState([]);
             const [inventorySessions, setInventorySessions] = useState(null);
-            const [filters, setFilters] = useState({
+            const INITIAL_FILTERS = {
                 status: [],
                 category: '',
                 systemCategory: '',
@@ -12290,7 +12327,11 @@
                 group: [],
                 location: [],
                 search: ''
-            });
+            };
+            const [filters, setFilters] = useState(INITIAL_FILTERS);
+            const handleResetFilters = useCallback(() => {
+                setFilters(INITIAL_FILTERS);
+            }, []);
             const [activeModal, setActiveModal] = useState(null);
             const [isLoadingCards, setIsLoadingCards] = useState(false);
             const [isExporting, setIsExporting] = useState(false);
@@ -14973,6 +15014,25 @@
                 setBatchActionAssetIds([]);
             };
 
+            // 暴露批次處理 handlers 給購物車側欄（batch_processing_list.html）直接呼叫
+            useEffect(() => {
+                window.UserstateCartBridge = {
+                    isAdvancedMode,
+                    hasPendingInventory: hasActiveInventory,
+                    handlers: {
+                        transfer: handleBatchTransfer,
+                        lending: handleBatchLending,
+                        scrap: handleBatchScrap,
+                        inventory: handleBatchInventory,
+                    }
+                };
+                try {
+                    window.dispatchEvent(new Event('UserstateCartBridge:update'));
+                } catch (err) {
+                    // 忽略事件派發錯誤
+                }
+            }, [isAdvancedMode, hasActiveInventory, handleBatchTransfer, handleBatchLending, handleBatchScrap, handleBatchInventory]);
+
             const handleBatchActionSuccess = () => {
                 const currentType = batchModalType;
                 setBatchModalType(null);
@@ -15394,6 +15454,7 @@
                     <FilterSection
                         filters={filters}
                         onFilterChange={handleFilterChange}
+                        onResetFilters={handleResetFilters}
                         allAssets={allAssets}
                         exportCount={filteredAssets.length}
                         isExporting={isExporting}
