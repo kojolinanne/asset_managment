@@ -15748,6 +15748,11 @@
         gap: 0;
         user-select: none;
         touch-action: none;
+        /* 容器本身不攔截點擊；互動僅透過 .fab-main 與展開後的 .fab-menu */
+        pointer-events: none;
+      }
+      .fab-container .fab-main {
+        pointer-events: auto;
       }
 
       /* 主按鈕 — 使用主專案 teal 配色 */
