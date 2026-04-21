@@ -353,6 +353,15 @@
             white-space: nowrap;
         }
 
+        /* 舊系統第三列：廠牌 *S/N:別名 之間的上標分隔符 */
+        .label-tpl[data-system="old"] .row-alias .alias-sep {
+            font-size: 6pt;        /* ← 分隔符大小 */
+            vertical-align: super; /* ← 上標靠攏 */
+            line-height: 0;        /* 避免推高行高 */
+            margin: 0 0.5mm;       /* ← 左右間距 */
+            font-weight: 400;
+        }
+
         /* 第四列：位置（左）、保管人＋日期（右） Y≈19mm */
         .row-info {
             display: flex;
@@ -1065,10 +1074,23 @@
 
         if (sys === 'old') {
             // 舊系統（物品總表）— 原排版邏輯
-            // 第三列：別名／序號 ＊ 廠牌／型號（兩者皆有時以「＊」隔開）
+            // 第三列：廠牌／型號 *S/N:別名／序號（＊為半形並上標靠攏）
             const aliasText = getAliasDisplay(asset);
             const brandText = asset.modelBrand || '';
-            $('lbl-alias').textContent = [aliasText, brandText].filter(Boolean).join(' ＊ ');
+            const aliasEl = $('lbl-alias');
+            aliasEl.textContent = ''; // 清空後以 DOM 節點組裝，避免 innerHTML XSS
+            if (brandText) {
+                aliasEl.appendChild(document.createTextNode(brandText));
+            }
+            if (brandText && aliasText) {
+                const sup = document.createElement('sup');
+                sup.className = 'alias-sep';
+                sup.textContent = '*';
+                aliasEl.appendChild(sup);
+            }
+            if (aliasText) {
+                aliasEl.appendChild(document.createTextNode('S/N:' + aliasText));
+            }
 
             $('lbl-prop-no').textContent = propNo;
             $('lbl-life').textContent = formatUseLife(asset.useLife);
