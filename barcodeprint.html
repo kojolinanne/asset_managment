@@ -122,6 +122,263 @@
         }
         .filter-bar input:focus, .filter-bar select:focus { border-color: var(--accent-400); box-shadow: 0 0 0 3px rgba(61,140,156,0.15); }
 
+        /* ===========================================================
+           篩選卡片精進版：多選下拉 + 搜尋 + chips
+           =========================================================== */
+        .filter-card { padding: 20px 22px; }
+
+        .filter-selects {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+        }
+
+        .ms-filter { position: relative; }
+
+        .ms-trigger {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            background: #fff;
+            color: var(--ink-700);
+            font-size: 0.88rem;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-align: left;
+            font-family: inherit;
+        }
+        .ms-trigger:hover { border-color: var(--accent-400); background: #f8fafc; }
+        .ms-filter.is-open .ms-trigger,
+        .ms-filter.is-active .ms-trigger {
+            border-color: var(--accent-500);
+            box-shadow: 0 0 0 3px rgba(61, 140, 156, 0.12);
+        }
+        .ms-filter.is-active .ms-trigger { background: #f0f7f6; }
+
+        .ms-trigger > i:first-child { color: var(--accent-500); font-size: 0.9rem; }
+        .ms-trigger .ms-label { flex: 1; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .ms-trigger .ms-badge {
+            background: var(--accent-500);
+            color: #fff;
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 1px 7px;
+            border-radius: 999px;
+            min-width: 20px;
+            text-align: center;
+            line-height: 1.4;
+        }
+        .ms-trigger .ms-caret {
+            color: var(--ink-500);
+            transition: transform 0.15s;
+            font-size: 0.75rem;
+        }
+        .ms-filter.is-open .ms-trigger .ms-caret { transform: rotate(180deg); }
+
+        .ms-panel {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            right: 0;
+            z-index: 30;
+            background: #fff;
+            border: 1px solid rgba(148, 163, 184, 0.4);
+            border-radius: 12px;
+            box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            animation: ms-pop 0.14s ease-out;
+        }
+        @keyframes ms-pop {
+            from { opacity: 0; transform: translateY(-4px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .ms-search { position: relative; margin-bottom: 8px; }
+        .ms-search i {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--ink-500);
+            font-size: 0.82rem;
+        }
+        .ms-search input {
+            width: 100%;
+            padding: 7px 10px 7px 30px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            outline: none;
+            background: #f8fafc;
+            transition: all 0.15s;
+            font-family: inherit;
+        }
+        .ms-search input:focus { background: #fff; border-color: var(--accent-400); box-shadow: 0 0 0 3px rgba(61,140,156,0.15); }
+
+        .ms-actions {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .ms-action {
+            flex: 1;
+            padding: 5px 8px;
+            font-size: 0.78rem;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            color: var(--ink-700);
+            cursor: pointer;
+            transition: all 0.12s;
+            font-family: inherit;
+        }
+        .ms-action:hover { background: #eff6ff; border-color: var(--accent-400); color: var(--accent-500); }
+
+        .ms-options {
+            overflow-y: auto;
+            max-height: 220px;
+            padding: 2px;
+            margin: -2px;
+        }
+        .ms-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            border-radius: 7px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: var(--ink-700);
+            transition: background 0.1s;
+        }
+        .ms-option:hover { background: #f8fafc; }
+        .ms-option input { display: none; }
+        .ms-option .ms-check {
+            width: 16px;
+            height: 16px;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.12s;
+            background: #fff;
+        }
+        .ms-option .ms-check i { color: #fff; font-size: 0.62rem; opacity: 0; }
+        .ms-option.is-checked .ms-check {
+            background: var(--accent-500);
+            border-color: var(--accent-500);
+        }
+        .ms-option.is-checked .ms-check i { opacity: 1; }
+        .ms-option.is-checked { background: rgba(47, 108, 127, 0.06); color: var(--ink-900); }
+        .ms-option .ms-text {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .ms-empty {
+            padding: 20px 10px;
+            text-align: center;
+            color: var(--ink-500);
+            font-size: 0.82rem;
+        }
+
+        /* 已選條件 chips */
+        .active-filters {
+            margin-top: 14px;
+            padding: 10px 12px;
+            background: #f8fafc;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .active-filters .af-label {
+            font-size: 0.8rem;
+            color: var(--ink-500);
+            font-weight: 500;
+            margin-right: 2px;
+        }
+        .active-filters .af-label i { margin-right: 4px; color: var(--accent-500); }
+        .af-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: #fff;
+            border: 1px solid rgba(47, 108, 127, 0.3);
+            border-radius: 999px;
+            font-size: 0.78rem;
+            color: var(--accent-500);
+            cursor: pointer;
+            transition: all 0.12s;
+            font-weight: 500;
+            font-family: inherit;
+        }
+        .af-chip:hover {
+            background: var(--accent-500);
+            color: #fff;
+            border-color: var(--accent-500);
+        }
+        .af-chip .af-cat { color: var(--ink-500); font-size: 0.72rem; }
+        .af-chip:hover .af-cat { color: rgba(255, 255, 255, 0.85); }
+        .af-chip .af-val { font-weight: 600; }
+        .af-chip i { font-size: 0.7rem; }
+
+        /* 搜尋 + 清除列 */
+        .filter-search-row {
+            margin-top: 14px;
+            display: flex;
+            gap: 10px;
+            align-items: stretch;
+        }
+        .search-input-wrap { position: relative; flex: 1; }
+        .search-input-wrap .search-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--ink-500);
+            font-size: 0.88rem;
+            pointer-events: none;
+        }
+        .search-input-wrap input {
+            width: 100%;
+            padding: 11px 14px 11px 40px;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            font-size: 0.92rem;
+            background: #fff;
+            outline: none;
+            transition: all 0.15s;
+            font-family: inherit;
+            color: var(--ink-900);
+        }
+        .search-input-wrap input:focus {
+            border-color: var(--accent-400);
+            box-shadow: 0 0 0 3px rgba(61, 140, 156, 0.15);
+        }
+        .search-input-wrap input::placeholder { color: #94a3b8; }
+        .filter-search-row #clearFiltersBtn { flex-shrink: 0; padding: 11px 18px; }
+
+        @media (max-width: 640px) {
+            .filter-selects { grid-template-columns: repeat(2, 1fr); }
+            .filter-search-row { flex-direction: column; }
+            .filter-search-row #clearFiltersBtn { width: 100%; }
+        }
+
         .table-wrap { overflow-x: auto; }
         table { width: 100%; border-collapse: collapse; }
         thead th {
@@ -521,39 +778,24 @@
         </div>
     </div>
 
-    <!-- 篩選列 -->
-    <div class="card" style="margin-top: 20px;">
-        <div class="filter-bar">
-            <div style="grid-column: span 2;">
-                <label>全文搜尋</label>
-                <input id="f-search" type="text" placeholder="財產編號／名稱／別名／保管人／位置…">
+    <!-- 篩選卡片 -->
+    <div class="card filter-card" style="margin-top: 20px;">
+        <!-- 多選下拉列 -->
+        <div id="filterSelects" class="filter-selects"></div>
+
+        <!-- 已選條件 chips（動態顯示） -->
+        <div id="activeFiltersBar" class="active-filters" hidden></div>
+
+        <!-- 全文搜尋 + 清除按鈕 -->
+        <div class="filter-search-row">
+            <div class="search-input-wrap">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input id="f-search" type="text" placeholder="輸入關鍵字搜尋（財產編號／名稱／別名／保管人／位置…）">
             </div>
-            <div>
-                <label>系統類別</label>
-                <select id="f-system"><option value="">全部</option></select>
-            </div>
-            <div>
-                <label>狀態</label>
-                <select id="f-status"><option value="">全部</option></select>
-            </div>
-            <div>
-                <label>保管位置</label>
-                <select id="f-location"><option value="">全部</option></select>
-            </div>
-            <div>
-                <label>保管人</label>
-                <select id="f-leader"><option value="">全部</option></select>
-            </div>
-            <div>
-                <label>財產類別</label>
-                <select id="f-category"><option value="">全部</option></select>
-            </div>
-            <div style="display:flex; align-items:flex-end;">
-                <button id="clearFiltersBtn" class="btn btn-ghost" style="width:100%;">
-                    <i class="fa-solid fa-eraser"></i>
-                    清除篩選
-                </button>
-            </div>
+            <button id="clearFiltersBtn" class="btn btn-ghost">
+                <i class="fa-solid fa-eraser"></i>
+                清除篩選
+            </button>
         </div>
     </div>
 
@@ -712,7 +954,14 @@
         pageSize: 50,
         isAdmin: false,
         forceUserScope: false,
-        filters: { search: '', system: '', status: '', location: '', leader: '', category: '' }
+        filters: {
+            search: '',
+            system:   new Set(),
+            status:   new Set(),
+            location: new Set(),
+            leader:   new Set(),
+            category: new Set()
+        }
     };
 
     // =========================================================
@@ -861,28 +1110,214 @@
     }
 
     // =========================================================
-    // 篩選
+    // 篩選：多選下拉元件
     // =========================================================
+    const multiSelects = {};  // field -> instance
+    const MS_CONFIGS = [
+        { field: 'system',   label: '系統類別', icon: 'fa-layer-group' },
+        { field: 'status',   label: '狀態',     icon: 'fa-circle-dot' },
+        { field: 'location', label: '保管位置', icon: 'fa-location-dot' },
+        { field: 'leader',   label: '保管人',   icon: 'fa-user' },
+        { field: 'category', label: '財產類別', icon: 'fa-tags' }
+    ];
+
+    function initMultiSelects() {
+        const parent = $('filterSelects');
+        if (!parent) return;
+        parent.innerHTML = '';
+        MS_CONFIGS.forEach(c => {
+            multiSelects[c.field] = createMultiSelect({ ...c, parentEl: parent });
+        });
+        // 點擊面板以外任何地方關閉所有面板
+        document.addEventListener('click', (e) => {
+            Object.values(multiSelects).forEach(ms => {
+                if (!ms.host.contains(e.target)) ms.close();
+            });
+        });
+    }
+
+    function createMultiSelect(config) {
+        const host = document.createElement('div');
+        host.className = 'ms-filter';
+        host.dataset.field = config.field;
+        host.innerHTML = `
+            <button type="button" class="ms-trigger">
+                <i class="fa-solid ${escapeHtml(config.icon)}"></i>
+                <span class="ms-label">${escapeHtml(config.label)}</span>
+                <span class="ms-badge" hidden>0</span>
+                <i class="fa-solid fa-chevron-down ms-caret"></i>
+            </button>
+            <div class="ms-panel" hidden>
+                <div class="ms-search">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" placeholder="搜尋選項…" autocomplete="off">
+                </div>
+                <div class="ms-actions">
+                    <button type="button" class="ms-action" data-act="all">全選</button>
+                    <button type="button" class="ms-action" data-act="clear">清除</button>
+                </div>
+                <div class="ms-options"></div>
+                <div class="ms-empty" hidden>無符合選項</div>
+            </div>
+        `;
+        config.parentEl.appendChild(host);
+
+        const trigger = host.querySelector('.ms-trigger');
+        const panel = host.querySelector('.ms-panel');
+        const badge = host.querySelector('.ms-badge');
+        const searchInput = host.querySelector('.ms-search input');
+        const optionsBox = host.querySelector('.ms-options');
+        const emptyBox = host.querySelector('.ms-empty');
+
+        let allOptions = [];
+        const getSelected = () => state.filters[config.field];
+
+        function renderOptions() {
+            const q = searchInput.value.trim().toLowerCase();
+            const sel = getSelected();
+            const filtered = allOptions.filter(v => !q || v.toLowerCase().includes(q));
+            if (filtered.length === 0) {
+                optionsBox.innerHTML = '';
+                emptyBox.hidden = false;
+                return;
+            }
+            emptyBox.hidden = true;
+            optionsBox.innerHTML = filtered.map(v => `
+                <label class="ms-option${sel.has(v) ? ' is-checked' : ''}">
+                    <input type="checkbox" value="${escapeHtml(v)}" ${sel.has(v) ? 'checked' : ''}>
+                    <span class="ms-check"><i class="fa-solid fa-check"></i></span>
+                    <span class="ms-text" title="${escapeHtml(v)}">${escapeHtml(v)}</span>
+                </label>
+            `).join('');
+        }
+
+        function updateBadge() {
+            const n = getSelected().size;
+            if (n === 0) {
+                badge.hidden = true;
+                host.classList.remove('is-active');
+            } else {
+                badge.hidden = false;
+                badge.textContent = String(n);
+                host.classList.add('is-active');
+            }
+        }
+
+        function open() {
+            Object.values(multiSelects).forEach(ms => { if (ms.host !== host) ms.close(); });
+            panel.hidden = false;
+            host.classList.add('is-open');
+            searchInput.value = '';
+            renderOptions();
+            setTimeout(() => searchInput.focus(), 0);
+        }
+        function close() {
+            panel.hidden = true;
+            host.classList.remove('is-open');
+        }
+
+        trigger.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (panel.hidden) open(); else close();
+        });
+        panel.addEventListener('click', (e) => e.stopPropagation());
+        searchInput.addEventListener('input', renderOptions);
+
+        optionsBox.addEventListener('change', (e) => {
+            if (!e.target.matches('input[type="checkbox"]')) return;
+            const val = e.target.value;
+            const sel = getSelected();
+            if (e.target.checked) sel.add(val); else sel.delete(val);
+            const opt = e.target.closest('.ms-option');
+            if (opt) opt.classList.toggle('is-checked', e.target.checked);
+            updateBadge();
+            renderActiveFilters();
+            applyFilters();
+        });
+
+        host.querySelectorAll('.ms-action').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const act = btn.dataset.act;
+                const sel = getSelected();
+                if (act === 'clear') {
+                    sel.clear();
+                } else if (act === 'all') {
+                    const q = searchInput.value.trim().toLowerCase();
+                    allOptions.forEach(v => { if (!q || v.toLowerCase().includes(q)) sel.add(v); });
+                }
+                renderOptions();
+                updateBadge();
+                renderActiveFilters();
+                applyFilters();
+            });
+        });
+
+        return {
+            host,
+            config,
+            setOptions(opts) {
+                allOptions = opts.slice();
+                // 移除不存在於新選項內的已選值
+                const sel = getSelected();
+                Array.from(sel).forEach(v => { if (!allOptions.includes(v)) sel.delete(v); });
+                updateBadge();
+                if (!panel.hidden) renderOptions();
+            },
+            refresh() { updateBadge(); if (!panel.hidden) renderOptions(); },
+            close
+        };
+    }
+
+    function renderActiveFilters() {
+        const bar = $('activeFiltersBar');
+        if (!bar) return;
+        const parts = [];
+        MS_CONFIGS.forEach(c => {
+            const sel = state.filters[c.field];
+            sel.forEach(v => parts.push({ field: c.field, label: c.label, value: v }));
+        });
+        if (parts.length === 0) {
+            bar.hidden = true;
+            bar.innerHTML = '';
+            return;
+        }
+        bar.hidden = false;
+        bar.innerHTML = `
+            <span class="af-label"><i class="fa-solid fa-filter"></i>已選條件：</span>
+            ${parts.map(p => `
+                <button type="button" class="af-chip" data-field="${escapeHtml(p.field)}" data-value="${escapeHtml(p.value)}">
+                    <span class="af-cat">${escapeHtml(p.label)}</span>
+                    <span class="af-val">${escapeHtml(p.value)}</span>
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            `).join('')}
+        `;
+        bar.querySelectorAll('.af-chip').forEach(c => {
+            c.addEventListener('click', () => {
+                const field = c.dataset.field;
+                const val = c.dataset.value;
+                state.filters[field].delete(val);
+                if (multiSelects[field]) multiSelects[field].refresh();
+                renderActiveFilters();
+                applyFilters();
+            });
+        });
+    }
+
     function populateFilters() {
         const assets = state.assets;
-        const sysOpts  = uniqSorted(assets.map(a => systemLabel(a)));
-        const statOpts = uniqSorted(assets.map(a => a.status));
-        const locOpts  = uniqSorted(assets.map(a => a.location));
-        const ldrOpts  = uniqSorted(assets.map(a => a.leader));
-        const catOpts  = uniqSorted(assets.map(a => a.category));
-
-        const fill = (id, opts) => {
-            const sel = $(id);
-            const current = sel.value;
-            sel.innerHTML = '<option value="">全部</option>' +
-                opts.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
-            sel.value = current; // 保留
+        const opts = {
+            system:   uniqSorted(assets.map(a => systemLabel(a))),
+            status:   uniqSorted(assets.map(a => a.status)),
+            location: uniqSorted(assets.map(a => a.location)),
+            leader:   uniqSorted(assets.map(a => a.leader)),
+            category: uniqSorted(assets.map(a => a.category))
         };
-        fill('f-system', sysOpts);
-        fill('f-status', statOpts);
-        fill('f-location', locOpts);
-        fill('f-leader', ldrOpts);
-        fill('f-category', catOpts);
+        Object.keys(opts).forEach(k => {
+            if (multiSelects[k]) multiSelects[k].setOptions(opts[k]);
+        });
+        renderActiveFilters();
     }
 
     function applyFilters() {
@@ -891,11 +1326,11 @@
 
         state.filtered = state.assets.filter(a => {
             if (q && (a.__search || '').indexOf(q) === -1) return false;
-            if (f.system   && systemLabel(a) !== f.system) return false;
-            if (f.status   && String(a.status    || '') !== f.status) return false;
-            if (f.location && String(a.location  || '') !== f.location) return false;
-            if (f.leader   && String(a.leader    || '') !== f.leader) return false;
-            if (f.category && String(a.category  || '') !== f.category) return false;
+            if (f.system.size   && !f.system.has(systemLabel(a)))              return false;
+            if (f.status.size   && !f.status.has(String(a.status    || '')))   return false;
+            if (f.location.size && !f.location.has(String(a.location || '')))  return false;
+            if (f.leader.size   && !f.leader.has(String(a.leader    || '')))   return false;
+            if (f.category.size && !f.category.has(String(a.category || '')))  return false;
             return true;
         });
 
@@ -1224,22 +1659,22 @@
     // 事件綁定
     // =========================================================
     function bindEvents() {
-        // 篩選輸入
+        // 初始化多選下拉元件
+        initMultiSelects();
+
+        // 全文搜尋
         $('f-search').addEventListener('input', debounce((e) => {
             state.filters.search = e.target.value.trim();
             applyFilters();
         }, 180));
-        ['f-system', 'f-status', 'f-location', 'f-leader', 'f-category'].forEach(id => {
-            $(id).addEventListener('change', (e) => {
-                const key = id.replace('f-', '');
-                state.filters[key] = e.target.value;
-                applyFilters();
-            });
-        });
+
+        // 清除所有篩選
         $('clearFiltersBtn').addEventListener('click', () => {
-            state.filters = { search: '', system: '', status: '', location: '', leader: '', category: '' };
+            state.filters.search = '';
+            MS_CONFIGS.forEach(c => state.filters[c.field].clear());
             $('f-search').value = '';
-            ['f-system', 'f-status', 'f-location', 'f-leader', 'f-category'].forEach(id => $(id).value = '');
+            Object.values(multiSelects).forEach(ms => ms.refresh());
+            renderActiveFilters();
             applyFilters();
         });
 
