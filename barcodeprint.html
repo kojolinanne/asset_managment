@@ -1120,8 +1120,8 @@
     // =========================================================
     const multiSelects = {};  // field -> instance
     const MS_CONFIGS = [
-        { field: 'system',   label: '系統類別', icon: 'fa-layer-group' },
-        { field: 'status',   label: '狀態',     icon: 'fa-circle-dot' },
+        { field: 'system',   label: '系統類別', icon: 'fa-layer-group', mode: 'single' },
+        { field: 'status',   label: '狀態',     icon: 'fa-circle-dot',  mode: 'single' },
         { field: 'location', label: '保管位置', icon: 'fa-location-dot' },
         { field: 'leader',   label: '保管人',   icon: 'fa-user' },
         { field: 'category', label: '財產類別', icon: 'fa-tags' }
@@ -1146,6 +1146,9 @@
         const host = document.createElement('div');
         host.className = 'ms-filter';
         host.dataset.field = config.field;
+        const isSingle = config.mode === 'single';
+        if (isSingle) host.classList.add('is-single-mode');
+
         host.innerHTML = `
             <button type="button" class="ms-trigger">
                 <i class="fa-solid ${escapeHtml(config.icon)}"></i>
@@ -1154,12 +1157,13 @@
                 <i class="fa-solid fa-chevron-down ms-caret"></i>
             </button>
             <div class="ms-panel" hidden>
+                ${isSingle ? '' : `
                 <div class="ms-search">
                     <i class="fa-solid fa-magnifying-glass"></i>
                     <input type="text" placeholder="搜尋選項…" autocomplete="off">
-                </div>
+                </div>`}
                 <div class="ms-actions">
-                    <button type="button" class="ms-action" data-act="all">全選</button>
+                    ${isSingle ? '' : '<button type="button" class="ms-action" data-act="all">全選</button>'}
                     <button type="button" class="ms-action" data-act="clear">清除</button>
                 </div>
                 <div class="ms-options"></div>
@@ -1171,15 +1175,16 @@
         const trigger = host.querySelector('.ms-trigger');
         const panel = host.querySelector('.ms-panel');
         const badge = host.querySelector('.ms-badge');
-        const searchInput = host.querySelector('.ms-search input');
+        const searchInput = host.querySelector('.ms-search input'); // 單選模式下為 null
         const optionsBox = host.querySelector('.ms-options');
         const emptyBox = host.querySelector('.ms-empty');
 
         let allOptions = [];
         const getSelected = () => state.filters[config.field];
+        const getSearchText = () => (searchInput ? searchInput.value.trim().toLowerCase() : '');
 
         function renderOptions() {
-            const q = searchInput.value.trim().toLowerCase();
+            const q = getSearchText();
             const sel = getSelected();
             const filtered = allOptions.filter(v => !q || v.toLowerCase().includes(q));
             if (filtered.length === 0) {
@@ -1189,8 +1194,8 @@
             }
             emptyBox.hidden = true;
             optionsBox.innerHTML = filtered.map(v => `
-                <label class="ms-option${sel.has(v) ? ' is-checked' : ''}">
-                    <input type="checkbox" value="${escapeHtml(v)}" ${sel.has(v) ? 'checked' : ''}>
+                <label class="ms-option${sel.has(v) ? ' is-checked' : ''}${isSingle ? ' is-single' : ''}">
+                    <input type="${isSingle ? 'radio' : 'checkbox'}" name="${escapeHtml(config.field)}-opt" value="${escapeHtml(v)}" ${sel.has(v) ? 'checked' : ''}>
                     <span class="ms-check"><i class="fa-solid fa-check"></i></span>
                     <span class="ms-text" title="${escapeHtml(v)}">${escapeHtml(v)}</span>
                 </label>
@@ -1213,9 +1218,9 @@
             Object.values(multiSelects).forEach(ms => { if (ms.host !== host) ms.close(); });
             panel.hidden = false;
             host.classList.add('is-open');
-            searchInput.value = '';
+            if (searchInput) searchInput.value = '';
             renderOptions();
-            setTimeout(() => searchInput.focus(), 0);
+            if (searchInput) setTimeout(() => searchInput.focus(), 0);
         }
         function close() {
             panel.hidden = true;
@@ -1227,15 +1232,23 @@
             if (panel.hidden) open(); else close();
         });
         panel.addEventListener('click', (e) => e.stopPropagation());
-        searchInput.addEventListener('input', renderOptions);
+        if (searchInput) searchInput.addEventListener('input', renderOptions);
 
         optionsBox.addEventListener('change', (e) => {
-            if (!e.target.matches('input[type="checkbox"]')) return;
+            if (!e.target.matches('input[type="checkbox"], input[type="radio"]')) return;
             const val = e.target.value;
             const sel = getSelected();
-            if (e.target.checked) sel.add(val); else sel.delete(val);
-            const opt = e.target.closest('.ms-option');
-            if (opt) opt.classList.toggle('is-checked', e.target.checked);
+            if (isSingle) {
+                // 單選：清掉舊值，設為當前勾選值（radio 不會觸發 unchecked 事件）
+                sel.clear();
+                if (e.target.checked) sel.add(val);
+                renderOptions();            // 重繪以更新其他選項的視覺狀態
+                close();                    // 單選完成後自動收起面板
+            } else {
+                if (e.target.checked) sel.add(val); else sel.delete(val);
+                const opt = e.target.closest('.ms-option');
+                if (opt) opt.classList.toggle('is-checked', e.target.checked);
+            }
             updateBadge();
             renderActiveFilters();
             applyFilters();
@@ -1249,7 +1262,7 @@
                 if (act === 'clear') {
                     sel.clear();
                 } else if (act === 'all') {
-                    const q = searchInput.value.trim().toLowerCase();
+                    const q = getSearchText();
                     allOptions.forEach(v => { if (!q || v.toLowerCase().includes(q)) sel.add(v); });
                 }
                 renderOptions();
