@@ -125,9 +125,16 @@
         /* ===========================================================
            篩選卡片精進版：多選下拉 + 搜尋 + chips
            =========================================================== */
-        .filter-card { padding: 20px 22px; }
+        /* 覆寫 .card 的 overflow: hidden，讓下拉選單面板可溢出至卡片外 */
+        .filter-card {
+            padding: 20px 22px;
+            overflow: visible;
+            position: relative;
+            z-index: 5;
+        }
 
         .filter-selects {
+            margin-top: 14px;
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 10px;
@@ -337,9 +344,8 @@
         .af-chip .af-val { font-weight: 600; }
         .af-chip i { font-size: 0.7rem; }
 
-        /* 搜尋 + 清除列 */
+        /* 搜尋 + 清除列（現為篩選卡片第一行） */
         .filter-search-row {
-            margin-top: 14px;
             display: flex;
             gap: 10px;
             align-items: stretch;
@@ -780,13 +786,7 @@
 
     <!-- 篩選卡片 -->
     <div class="card filter-card" style="margin-top: 20px;">
-        <!-- 多選下拉列 -->
-        <div id="filterSelects" class="filter-selects"></div>
-
-        <!-- 已選條件 chips（動態顯示） -->
-        <div id="activeFiltersBar" class="active-filters" hidden></div>
-
-        <!-- 全文搜尋 + 清除按鈕 -->
+        <!-- 第 1 行：全文搜尋 + 清除按鈕 -->
         <div class="filter-search-row">
             <div class="search-input-wrap">
                 <i class="fa-solid fa-magnifying-glass search-icon"></i>
@@ -797,6 +797,12 @@
                 清除篩選
             </button>
         </div>
+
+        <!-- 第 2 行：多選下拉列 -->
+        <div id="filterSelects" class="filter-selects"></div>
+
+        <!-- 第 3 行：已選條件 chips（動態顯示） -->
+        <div id="activeFiltersBar" class="active-filters" hidden></div>
     </div>
 
     <!-- 清單 -->
