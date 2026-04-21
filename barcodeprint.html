@@ -1145,11 +1145,12 @@
 
                 const labelNode = document.getElementById('label-template');
                 const canvas = await html2canvas(labelNode, {
-                    scale: 4,
+                    scale: 8,
                     useCORS: true,
                     backgroundColor: '#ffffff',
                     logging: false,
-                    removeContainer: true
+                    removeContainer: true,
+                    letterRendering: true
                 });
                 const imgData = canvas.toDataURL('image/png');
                 if (i > 0) pdf.addPage([60.06, 30.03], 'landscape');
