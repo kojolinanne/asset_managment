@@ -6309,33 +6309,37 @@
             );
         };
 
-        // BatchActionButtons 組件 - 批次操作按鈕卡片
+        // BatchActionButtons 組件 - 一般模式下的固定底部批次處理列
+        // 進階模式：不渲染（改由進階 ActionPanel / 清單側欄處理）
+        // 一般模式：有勾選資產時從底部滑入；未勾選時滑出隱藏
         const BatchActionButtons = ({ onBatchTransfer, onBatchLending, onBatchScrap, hasPendingInventory, onBatchInventory, isAdvancedMode }) => {
             const [batchCount, setBatchCount] = useState(0);
 
             useEffect(() => {
-                // 監聽 BatchList 變化
                 const updateCount = () => {
                     if (typeof window.BatchList_getItems === 'function') {
                         setBatchCount(window.BatchList_getItems().length);
                     }
                 };
-
-                // 初始更新
                 updateCount();
-
-                // 定期更新（每 500ms）
                 const interval = setInterval(updateCount, 500);
                 return () => clearInterval(interval);
             }, []);
 
+            if (isAdvancedMode) return null;
+
+            const visible = batchCount > 0;
+
             return (
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 mb-6">
-                    <div className="flex flex-wrap items-center justify-between gap-4">
+                <div
+                    className={`fixed bottom-0 left-0 right-0 z-40 px-4 py-3 bg-white/95 backdrop-blur border-t border-slate-200 shadow-[0_-6px_24px_rgba(15,23,42,0.08)] transition-transform duration-300 ease-out ${visible ? 'translate-y-0' : 'translate-y-full'}`}
+                    aria-hidden={!visible}
+                >
+                    <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
-                            <div className="text-sm text-slate-600">
+                            <div className="text-sm text-slate-700">
                                 <i className="fa-solid fa-cart-shopping text-blue-500 mr-2"></i>
-                                已選取 <span className="font-bold text-blue-600">{batchCount}</span> 項資產
+                                已選取 <span className="font-bold text-blue-600 text-base">{batchCount}</span> 項資產
                             </div>
                             {batchCount > 0 && (
                                 <button
@@ -6346,38 +6350,32 @@
                                 </button>
                             )}
                         </div>
-                        {isAdvancedMode && (
-                            <div className="text-xs text-amber-600">
-                                進階模式請在清單中送出，按鈕僅供一般模式使用。
-                            </div>
-                        )}
                         <div className="flex gap-2 flex-wrap">
                             <button
                                 onClick={onBatchTransfer}
-                                disabled={batchCount === 0 || isAdvancedMode}
+                                disabled={batchCount === 0}
                                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 text-sm"
                             >
                                 <i className="fa-solid fa-right-left"></i> 批次轉移
                             </button>
                             <button
                                 onClick={onBatchLending}
-                                disabled={batchCount === 0 || isAdvancedMode}
+                                disabled={batchCount === 0}
                                 className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 text-sm"
                             >
                                 <i className="fa-solid fa-hand-holding-hand"></i> 批次出借
                             </button>
                             <button
                                 onClick={onBatchScrap}
-                                disabled={batchCount === 0 || isAdvancedMode}
+                                disabled={batchCount === 0}
                                 className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 text-sm"
                             >
                                 <i className="fa-regular fa-trash-can"></i> 批次報廢
                             </button>
-                            {/* 批次盤點按鈕 - 如果有進行中的盤點會話則顯示 */}
                             {hasPendingInventory && (
                                 <button
                                     onClick={onBatchInventory}
-                                    disabled={batchCount === 0 || isAdvancedMode}
+                                    disabled={batchCount === 0}
                                     className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 text-sm"
                                 >
                                     <i className="fa-solid fa-clipboard-check"></i> 批次盤點
