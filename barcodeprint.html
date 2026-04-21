@@ -355,10 +355,12 @@
 
         /* 舊系統第三列：廠牌 *S/N:別名 之間的上標分隔符 */
         .label-tpl[data-system="old"] .row-alias .alias-sep {
-            font-size: 6pt;        /* ← 分隔符大小 */
-            vertical-align: super; /* ← 上標靠攏 */
-            line-height: 0;        /* 避免推高行高 */
-            margin: 0 0.5mm;       /* ← 左右間距 */
+            font-size: 8pt;         /* ← 分隔符大小 */
+            display: inline-block;
+            position: relative;
+            top: 0.1mm;            /* ← 負值往上，絕對值越大越高 */
+            line-height: 0;         /* 避免推高行高 */
+            margin: 0 0.4mm;        /* ← 左右間距 */
             font-weight: 400;
         }
 
