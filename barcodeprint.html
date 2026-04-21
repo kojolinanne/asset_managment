@@ -389,7 +389,7 @@
         .row-barcode svg { height: 100%; width: 100%; display: block; }
 
         /* 底部小字：置中 Y≈29mm */
-        .row-small-text { font-size: 7pt; text-align: center; margin-top: 0.3mm; font-family: 'Arial', sans-serif; }
+        .row-small-text { font-size: 7pt; text-align: center; margin-top: 0.1mm; font-family: 'Arial', sans-serif; }
 
         /* ===== 新系統專屬版面 ===== */
         /* 第一列：機構｜購置日期｜使用年限（3 欄 flex） */
@@ -1060,11 +1060,15 @@
         document.getElementById('label-template').setAttribute('data-system', sys);
 
         // 共用欄位
-        $('lbl-alias').textContent = getAliasDisplay(asset);
         $('lbl-prop-no-small').textContent = propNo;
 
         if (sys === 'old') {
             // 舊系統（物品總表）— 原排版邏輯
+            // 第三列：別名／序號 ＊ 廠牌／型號（兩者皆有時以「＊」隔開）
+            const aliasText = getAliasDisplay(asset);
+            const brandText = asset.modelBrand || '';
+            $('lbl-alias').textContent = [aliasText, brandText].filter(Boolean).join(' ＊ ');
+
             $('lbl-prop-no').textContent = propNo;
             $('lbl-life').textContent = formatUseLife(asset.useLife);
             $('lbl-name').textContent = asset.assetName || '';
@@ -1073,6 +1077,7 @@
             $('lbl-date').textContent = getPurchaseDateDisplay(asset);
         } else {
             // 新系統（財產總表）— 新排版
+            $('lbl-alias').textContent = getAliasDisplay(asset);
             $('lbl-org-new').textContent       = getOrgNameForProperty(asset);
             $('lbl-date-new').textContent      = getPurchaseDateDisplay(asset);
             $('lbl-life-new').textContent      = formatUseLife(asset.useLife);
