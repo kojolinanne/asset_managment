@@ -514,6 +514,38 @@
             max-width: 620px;
         }
         .modal-content h3 { margin: 0 0 12px 0; font-size: 1.15rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+        .modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top: 12px; flex-wrap: wrap; }
+        .modal-note { color: var(--ink-500); font-size: 0.82rem; margin-top: 12px; }
+        .print-method-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .print-method-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 6px;
+            min-height: 112px;
+            padding: 16px 18px;
+            border-radius: 14px;
+            border: 1px solid rgba(148, 163, 184, 0.38);
+            background: linear-gradient(180deg, #ffffff, #f8fafc);
+            color: var(--ink-900);
+            cursor: pointer;
+            transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+            text-align: left;
+            font-family: inherit;
+        }
+        .print-method-btn:hover {
+            border-color: var(--accent-400);
+            transform: translateY(-1px);
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+        }
+        .print-method-btn i { color: var(--accent-500); font-size: 1rem; }
+        .print-method-btn .method-title { font-size: 0.98rem; font-weight: 700; }
+        .print-method-btn .method-desc { font-size: 0.82rem; color: var(--ink-500); line-height: 1.45; }
 
         .progress-bar-wrap {
             height: 10px;
@@ -548,13 +580,11 @@
             z-index: -1;
             contain: layout paint style;
         }
-
-        #label-template, .label-tpl {
+        .label-base {
             width: 60.06mm;
             height: 30.03mm;
             background-color: #ffffff;
             color: #000000;
-            /* 列印區優先使用本機字型，避免 html2canvas 擷取極小字時 Google Web Font 發虛。 */
             font-family: var(--label-font-family);
             font-weight: 700;
             padding: 0mm 0.5mm 0.5mm 0.5mm;
@@ -562,18 +592,44 @@
             display: flex;
             flex-direction: column;
             line-height: 1;
-            transform-origin: top left;
             overflow: hidden;
             visibility: visible;
             text-rendering: geometricPrecision;
             -webkit-font-smoothing: antialiased;
         }
+        .label-html2canvas {
+            transform-origin: top left;
+        }
+        .label-native-print {
+            transform: none;
+        }
+        .native-print-root {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+        }
+        .native-print-page {
+            width: 60.06mm;
+            height: 30.03mm;
+            page-break-after: always;
+            break-after: page;
+            overflow: hidden;
+        }
+        .native-print-page:last-child {
+            page-break-after: auto;
+            break-after: auto;
+        }
+        .native-print-page > .label-base {
+            margin: 0;
+        }
+
+        #label-template, .label-tpl { }
         /* 所有文字列：不可被壓縮 */
         .row-header, .row-header-new, .row-name, .row-alias, .row-brand, .row-info, .row-info-new, .row-small-text { flex-shrink: 0; }
 
         /* 依系統切換顯示（舊系統／新系統共存於同一模板中） */
-        .label-tpl[data-system="new"] .old-only { display: none; }
-        .label-tpl[data-system="old"] .new-only { display: none; }
+        .label-base[data-system="new"] .old-only { display: none; }
+        .label-base[data-system="old"] .new-only { display: none; }
 
         /* 第一列：機構名稱＋財産編號（左），使用年限（右） Y≈4mm */
         .row-header {
@@ -612,14 +668,14 @@
         }
 
         /* 舊系統第三列：財産別名 Y≈14mm */
-        .label-tpl[data-system="old"] .row-alias {
+        .label-base[data-system="old"] .row-alias {
             font-size: 8pt;
             margin-top: 0.8mm;
             white-space: nowrap;
         }
 
         /* 舊系統第三列：廠牌 *S/N:別名 之間的上標分隔符 */
-        .label-tpl[data-system="old"] .row-alias .alias-sep {
+        .label-base[data-system="old"] .row-alias .alias-sep {
             font-size: 8pt;         /* ← 分隔符大小 */
             display: inline-block;
             position: relative;
@@ -684,7 +740,7 @@
         }
 
         /* 第二列：財産別名 */
-        .label-tpl[data-system="new"] .row-alias {
+        .label-base[data-system="new"] .row-alias {
             font-size: 7pt;
             margin-top: 1mm;
             white-space: nowrap;
@@ -713,7 +769,7 @@
         }
 
         /* 新系統：條碼靠左對齊（覆寫舊系統的 center） */
-        .label-tpl[data-system="new"] .row-barcode {
+        .label-base[data-system="new"] .row-barcode {
             align-self: flex-start;
             margin-top: 2.3mm;
             height: 6mm;
@@ -721,10 +777,22 @@
         }
 
         /* 新系統：編號純文字靠左對齊（覆寫舊系統的 center） */
-        .label-tpl[data-system="new"] .row-small-text {
+        .label-base[data-system="new"] .row-small-text {
             text-align: left;
             font-size: 8pt;      /* ← 調字型大小改這裡 */                 
             margin-top: 0.1mm;   /* ← 縮小與條碼的間距改這裡 */  
+        }
+
+        @media print {
+            html.native-print-root,
+            body.native-print-root {
+                margin: 0 !important;
+                padding: 0 !important;
+                background: #ffffff !important;
+            }
+            .native-print-page {
+                margin: 0;
+            }
         }
 
         /* 預覽用：放大顯示
@@ -883,6 +951,30 @@
     </div>
 </div>
 
+<!-- 列印方式選擇 Modal -->
+<div id="printMethodModal" class="modal-backdrop">
+    <div class="modal-content">
+        <h3><i class="fa-solid fa-print" style="color: var(--accent-500);"></i> 選擇列印方式</h3>
+        <p style="color: var(--ink-700); margin: 6px 0 0 0;">同一組標籤可用兩種流程輸出，方便比較清晰度與列印結果。</p>
+        <div class="print-method-actions">
+            <button id="printMethodHtml2CanvasBtn" class="print-method-btn" type="button">
+                <i class="fa-solid fa-file-arrow-down"></i>
+                <span class="method-title">下載 PDF（html2canvas）</span>
+                <span class="method-desc">沿用目前流程，先把標籤轉成圖片後再匯出 PDF。</span>
+            </button>
+            <button id="printMethodNativeBtn" class="print-method-btn" type="button">
+                <i class="fa-solid fa-up-right-from-square"></i>
+                <span class="method-title">原生列印</span>
+                <span class="method-desc">不經 html2canvas，改由瀏覽器原生列印視窗輸出與另存 PDF。</span>
+            </button>
+        </div>
+        <p class="modal-note">原生列印會開啟新視窗，由瀏覽器決定實際列印對話框與另存 PDF 流程。</p>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal('printMethodModal')">取消</button>
+        </div>
+    </div>
+</div>
+
 <!-- 錯誤提示 Modal -->
 <div id="alertModal" class="modal-backdrop">
     <div class="modal-content">
@@ -896,7 +988,7 @@
 
 <!-- ===== 隱藏的標籤渲染區：html2canvas 會擷取此區塊產出圖檔 ===== -->
 <div class="label-capture-stage" aria-hidden="true">
-    <div id="label-template" class="label-tpl" data-system="old">
+    <div id="label-template" class="label-tpl label-base label-html2canvas" data-system="old">
         <!-- 舊系統第一列：機構+編號｜使用年限 -->
         <div class="row-header old-only">
             <div class="header-left">
@@ -958,6 +1050,7 @@
         assets: [],
         filtered: [],
         selected: new Set(),
+        pendingPrintAssets: null,
         page: 1,
         pageSize: 50,
         isAdmin: false,
@@ -976,6 +1069,7 @@
     // DOM shortcut
     // =========================================================
     const $ = (id) => document.getElementById(id);
+    const LABEL_SIZE_MM = { width: 60.06, height: 30.03 };
 
     // =========================================================
     // Helpers
@@ -1075,8 +1169,171 @@
         openModal('alertModal');
     }
     function openModal(id) { $(id).classList.add('visible'); }
-    function closeModal(id) { $(id).classList.remove('visible'); }
+    function closeModal(id) {
+        $(id).classList.remove('visible');
+        if (id === 'printMethodModal') state.pendingPrintAssets = null;
+    }
     window.closeModal = closeModal;
+
+    function getOrderedAssetsForSelection() {
+        const idSet = state.selected;
+        const inFiltered = state.filtered.filter(a => idSet.has(String(a.assetId)));
+        const orderedIds = new Set(inFiltered.map(a => String(a.assetId)));
+        const tail = state.assets.filter(a => idSet.has(String(a.assetId)) && !orderedIds.has(String(a.assetId)));
+        return [...inFiltered, ...tail];
+    }
+
+    function openPrintMethodModal(assets) {
+        if (!assets || assets.length === 0) return;
+        state.pendingPrintAssets = assets.slice();
+        openModal('printMethodModal');
+    }
+
+    function getPendingPrintAssets() {
+        return Array.isArray(state.pendingPrintAssets) ? state.pendingPrintAssets.slice() : [];
+    }
+
+    function getLabelField(root, id) {
+        return root.querySelector(`[id="${id}"]`);
+    }
+
+    function getLabelPrintStyles() {
+        return `
+            :root { --label-font-family: "Microsoft JhengHei", "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif; }
+            @page { size: ${LABEL_SIZE_MM.width}mm ${LABEL_SIZE_MM.height}mm; margin: 0; }
+            html, body {
+                margin: 0;
+                padding: 0;
+                background: #ffffff;
+                font-family: var(--label-font-family);
+            }
+            .label-base {
+                width: ${LABEL_SIZE_MM.width}mm;
+                height: ${LABEL_SIZE_MM.height}mm;
+                background-color: #ffffff;
+                color: #000000;
+                font-family: var(--label-font-family);
+                font-weight: 700;
+                padding: 0mm 0.5mm 0.5mm 0.5mm;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                line-height: 1;
+                overflow: hidden;
+                visibility: visible;
+                text-rendering: geometricPrecision;
+                -webkit-font-smoothing: antialiased;
+            }
+            .label-base[data-system="new"] .old-only { display: none; }
+            .label-base[data-system="old"] .new-only { display: none; }
+            .row-header, .row-header-new, .row-name, .row-alias, .row-brand, .row-info, .row-info-new, .row-small-text { flex-shrink: 0; }
+            .row-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: baseline;
+                gap: 1mm;
+            }
+            .header-left {
+                display: flex;
+                align-items: baseline;
+                gap: 4mm;
+                flex-shrink: 1;
+            }
+            .header-org { font-size: 8pt; white-space: nowrap; flex-shrink: 0; }
+            .header-prop-no { font-size: 9pt; font-weight: 900; white-space: nowrap; }
+            .header-life { font-size: 9pt; white-space: nowrap; flex-shrink: 0; }
+            .row-name { font-size: 8pt; margin-top: 0.5mm; white-space: nowrap; }
+            .label-base[data-system="old"] .row-alias { font-size: 8pt; margin-top: 0.8mm; white-space: nowrap; }
+            .label-base[data-system="old"] .row-alias .alias-sep {
+                font-size: 8pt;
+                display: inline-block;
+                position: relative;
+                top: 0.1mm;
+                line-height: 0;
+                margin: 0 0.4mm;
+                font-weight: 400;
+            }
+            .row-info {
+                display: flex;
+                justify-content: space-between;
+                align-items: baseline;
+                font-size: 8pt;
+                margin-top: 0.8mm;
+                gap: 1mm;
+            }
+            .info-loc { text-align: left; white-space: nowrap; flex: 1 1 auto; }
+            .info-right {
+                display: flex;
+                gap: 1.5mm;
+                white-space: nowrap;
+                flex-shrink: 0;
+                margin-right: 2mm;
+            }
+            .row-barcode {
+                display: flex;
+                justify-content: center;
+                align-items: stretch;
+                margin-top: 2.3mm;
+                width: 90%;
+                align-self: center;
+                height: 8mm;
+                flex: 0 0 8mm;
+                overflow: hidden;
+            }
+            .row-barcode svg { height: 100%; width: 100%; display: block; }
+            .row-small-text { font-size: 7pt; text-align: center; margin-top: 0.1mm; font-family: var(--label-font-family); }
+            .row-header-new {
+                display: flex;
+                justify-content: space-between;
+                align-items: baseline;
+                gap: 1mm;
+                font-size: 7pt;
+            }
+            .row-header-new .header-org,
+            .row-header-new .header-date-new,
+            .row-header-new .header-life { white-space: nowrap; }
+            .label-base[data-system="new"] .row-alias { font-size: 7pt; margin-top: 1mm; white-space: nowrap; }
+            .row-brand { font-size: 7pt; margin-top: 1.4mm; white-space: nowrap; }
+            .row-info-new {
+                display: flex;
+                justify-content: space-between;
+                align-items: baseline;
+                font-size: 7pt;
+                margin-top: 1.4mm;
+                gap: 1mm;
+            }
+            .row-info-new .info-loc { text-align: left; white-space: nowrap; flex: 1 1 auto; }
+            .label-base[data-system="new"] .row-barcode {
+                align-self: flex-start;
+                margin-top: 2.3mm;
+                height: 6mm;
+                flex: 0 0 6mm;
+            }
+            .label-base[data-system="new"] .row-small-text {
+                text-align: left;
+                font-size: 8pt;
+                margin-top: 0.1mm;
+            }
+            html.native-print-root,
+            body.native-print-root {
+                margin: 0;
+                padding: 0;
+                background: #ffffff;
+            }
+            .native-print-page {
+                width: ${LABEL_SIZE_MM.width}mm;
+                height: ${LABEL_SIZE_MM.height}mm;
+                page-break-after: always;
+                break-after: page;
+                overflow: hidden;
+            }
+            .native-print-page:last-child {
+                page-break-after: auto;
+                break-after: auto;
+            }
+            .native-print-page > .label-base { margin: 0; }
+        `;
+    }
 
     // =========================================================
     // 載入資料
@@ -1466,7 +1723,7 @@
                 const tr = e.target.closest('tr');
                 const id = tr.getAttribute('data-id');
                 const asset = state.assets.find(a => String(a.assetId) === id);
-                if (asset) printAssetsAsPdf([asset]);
+                if (asset) openPrintMethodModal([asset]);
             });
         });
 
@@ -1520,22 +1777,23 @@
     // =========================================================
     // 標籤渲染 & PDF 產生
     // =========================================================
-    function fillLabelTemplate(asset) {
+    function fillLabelTemplate(asset, root) {
+        const labelRoot = root || $('label-template');
         const propNo = String(asset.assetId || '');
         const sys = getLabelSystem(asset);
 
         // 切換模板（CSS 依 data-system 顯示對應區塊、對齊條碼與編號文字）
-        document.getElementById('label-template').setAttribute('data-system', sys);
+        labelRoot.setAttribute('data-system', sys);
 
         // 共用欄位
-        $('lbl-prop-no-small').textContent = propNo;
+        getLabelField(labelRoot, 'lbl-prop-no-small').textContent = propNo;
 
         if (sys === 'old') {
             // 舊系統（物品總表）— 原排版邏輯
             // 第三列：廠牌／型號 *S/N:別名／序號（＊為半形並上標靠攏）
             const aliasText = getAliasDisplay(asset);
             const brandText = asset.modelBrand || '';
-            const aliasEl = $('lbl-alias');
+            const aliasEl = getLabelField(labelRoot, 'lbl-alias');
             aliasEl.textContent = ''; // 清空後以 DOM 節點組裝，避免 innerHTML XSS
             if (brandText) {
                 aliasEl.appendChild(document.createTextNode(brandText));
@@ -1550,44 +1808,86 @@
                 aliasEl.appendChild(document.createTextNode('S/N:' + aliasText));
             }
 
-            $('lbl-prop-no').textContent = propNo;
-            $('lbl-life').textContent = formatUseLife(asset.useLife);
-            $('lbl-name').textContent = asset.assetName || '';
-            $('lbl-loc').textContent = asset.location || '';
-            $('lbl-custodian').textContent = asset.leader || '';
-            $('lbl-date').textContent = getPurchaseDateDisplay(asset);
+            getLabelField(labelRoot, 'lbl-prop-no').textContent = propNo;
+            getLabelField(labelRoot, 'lbl-life').textContent = formatUseLife(asset.useLife);
+            getLabelField(labelRoot, 'lbl-name').textContent = asset.assetName || '';
+            getLabelField(labelRoot, 'lbl-loc').textContent = asset.location || '';
+            getLabelField(labelRoot, 'lbl-custodian').textContent = asset.leader || '';
+            getLabelField(labelRoot, 'lbl-date').textContent = getPurchaseDateDisplay(asset);
         } else {
             // 新系統（財產總表）— 新排版
-            $('lbl-alias').textContent = getAliasDisplay(asset);
-            $('lbl-org-new').textContent       = getOrgNameForProperty(asset);
-            $('lbl-date-new').textContent      = getPurchaseDateDisplay(asset);
-            $('lbl-life-new').textContent      = formatUseLife(asset.useLife);
-            $('lbl-brand').textContent         = asset.modelBrand || '';
-            $('lbl-loc-new').textContent       = asset.location || '';
-            $('lbl-custodian-new').textContent = asset.leader || '';
+            getLabelField(labelRoot, 'lbl-alias').textContent = getAliasDisplay(asset);
+            getLabelField(labelRoot, 'lbl-org-new').textContent = getOrgNameForProperty(asset);
+            getLabelField(labelRoot, 'lbl-date-new').textContent = getPurchaseDateDisplay(asset);
+            getLabelField(labelRoot, 'lbl-life-new').textContent = formatUseLife(asset.useLife);
+            getLabelField(labelRoot, 'lbl-brand').textContent = asset.modelBrand || '';
+            getLabelField(labelRoot, 'lbl-loc-new').textContent = asset.location || '';
+            getLabelField(labelRoot, 'lbl-custodian-new').textContent = asset.leader || '';
         }
 
         // 條碼：CODE128，與範例完全一致
         try {
+            const barcodeSvg = getLabelField(labelRoot, 'barcode-svg');
             if (propNo) {
-                JsBarcode("#barcode-svg", propNo, {
+                JsBarcode(barcodeSvg, propNo, {
                     format: "CODE128",
                     displayValue: false,
                     margin: 0,
                     width: 2,
                     height: 40
                 });
-                document.getElementById("barcode-svg").setAttribute("preserveAspectRatio", "none");
+                barcodeSvg.setAttribute('preserveAspectRatio', 'none');
             } else {
                 // 無編號則清空
-                document.getElementById("barcode-svg").innerHTML = '';
+                barcodeSvg.innerHTML = '';
             }
         } catch (e) {
             console.error("條碼生成失敗：", e, "資產：", propNo);
         }
     }
 
-    async function printAssetsAsPdf(assets) {
+    function createFilledLabelNode(asset, variantClass) {
+        const labelNode = $('label-template').cloneNode(true);
+        labelNode.removeAttribute('id');
+        labelNode.classList.remove('label-html2canvas', 'label-native-print');
+        labelNode.classList.add('label-base');
+        if (variantClass) labelNode.classList.add(variantClass);
+        fillLabelTemplate(asset, labelNode);
+        labelNode.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+        return labelNode;
+    }
+
+    function buildNativePrintDocument(assets) {
+        const pages = assets.map(asset => {
+            const labelNode = createFilledLabelNode(asset, 'label-native-print');
+            return `<div class="native-print-page">${labelNode.outerHTML}</div>`;
+        }).join('');
+
+        return `<!DOCTYPE html>
+<html lang="zh-TW" class="native-print-root">
+<head>
+    <meta charset="UTF-8">
+    <title>財產標籤列印</title>
+    <style>${getLabelPrintStyles()}</style>
+</head>
+<body class="native-print-root">
+${pages}
+<script>
+window.addEventListener('load', function () {
+    var ready = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+    ready.then(function () {
+        setTimeout(function () { window.print(); }, 80);
+    });
+});
+window.addEventListener('afterprint', function () {
+    setTimeout(function () { window.close(); }, 120);
+});
+<\/script>
+</body>
+</html>`;
+    }
+
+    async function runHtml2CanvasPrint(assets) {
         if (!assets || assets.length === 0) return;
         if (!window.jspdf || !window.JsBarcode || !window.html2canvas) {
             showAlert('列印資源尚未完全載入，請稍後再試。');
@@ -1614,13 +1914,13 @@
             const pdf = new jsPDF({
                 orientation: 'landscape',
                 unit: 'mm',
-                format: [60.06, 30.03]
+                format: [LABEL_SIZE_MM.width, LABEL_SIZE_MM.height]
             });
 
             for (let i = 0; i < assets.length; i++) {
                 const a = assets[i];
                 progressText.textContent = `產生中 ${i + 1} / ${assets.length}：${a.assetId || ''}`;
-                fillLabelTemplate(a);
+                fillLabelTemplate(a, $('label-template'));
                 await waitForPaint();
 
                 const labelNode = document.getElementById('label-template');
@@ -1633,8 +1933,8 @@
                     letterRendering: true
                 });
                 const imgData = canvas.toDataURL('image/png');
-                if (i > 0) pdf.addPage([60.06, 30.03], 'landscape');
-                pdf.addImage(imgData, 'PNG', 0, 0, 60.06, 30.03);
+                if (i > 0) pdf.addPage([LABEL_SIZE_MM.width, LABEL_SIZE_MM.height], 'landscape');
+                pdf.addImage(imgData, 'PNG', 0, 0, LABEL_SIZE_MM.width, LABEL_SIZE_MM.height);
 
                 progressBar.style.width = `${((i + 1) / assets.length * 100).toFixed(1)}%`;
             }
@@ -1653,6 +1953,21 @@
         }
     }
 
+    function runNativeBrowserPrint(assets) {
+        if (!assets || assets.length === 0) return;
+        const printWindow = window.open('', '_blank', 'width=960,height=720');
+        if (!printWindow) {
+            showAlert('瀏覽器阻擋了列印視窗，請允許彈出視窗後再試一次。', '無法開啟列印視窗');
+            return;
+        }
+
+        const doc = printWindow.document;
+        doc.open();
+        doc.write(buildNativePrintDocument(assets));
+        doc.close();
+        try { printWindow.focus(); } catch (e) { /* ignore */ }
+    }
+
     // =========================================================
     // 預覽（使用同一個 label template 的快照）
     // =========================================================
@@ -1662,16 +1977,9 @@
             || state.assets.find(a => state.selected.has(String(a.assetId)));
         if (!firstSelected) return;
 
-        fillLabelTemplate(firstSelected);
-
-        // clone label-template，保留 class（.label-tpl）以繼承 CSS 樣式
-        const clone = document.getElementById('label-template').cloneNode(true);
-        clone.removeAttribute('id');
-        clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
-
         const wrap = $('preview-label');
         wrap.innerHTML = '';
-        wrap.appendChild(clone);
+        wrap.appendChild(createFilledLabelNode(firstSelected, 'label-html2canvas'));
 
         openModal('previewModal');
     }
@@ -1713,19 +2021,24 @@
         });
         $('printBtn').addEventListener('click', () => {
             if (state.selected.size === 0) return;
-            // 依照篩選後的順序排序輸出
-            const idSet = state.selected;
-            const inFiltered = state.filtered.filter(a => idSet.has(String(a.assetId)));
-            const orderedIds = new Set(inFiltered.map(a => String(a.assetId)));
-            const tail = state.assets.filter(a => idSet.has(String(a.assetId)) && !orderedIds.has(String(a.assetId)));
-            printAssetsAsPdf([...inFiltered, ...tail]);
+            openPrintMethodModal(getOrderedAssetsForSelection());
         });
         $('previewBtn').addEventListener('click', openPreview);
+        $('printMethodHtml2CanvasBtn').addEventListener('click', async () => {
+            const assets = getPendingPrintAssets();
+            closeModal('printMethodModal');
+            await runHtml2CanvasPrint(assets);
+        });
+        $('printMethodNativeBtn').addEventListener('click', () => {
+            const assets = getPendingPrintAssets();
+            closeModal('printMethodModal');
+            runNativeBrowserPrint(assets);
+        });
 
         // 關閉 modal：背景點擊關閉
         document.querySelectorAll('.modal-backdrop').forEach(m => {
             m.addEventListener('click', (e) => {
-                if (e.target === m) m.classList.remove('visible');
+                if (e.target === m) closeModal(m.id);
             });
         });
     }
