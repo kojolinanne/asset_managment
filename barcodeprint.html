@@ -27,6 +27,7 @@
             --accent-300: #7dd3c7;
             --warm-200: #f7d7b5;
             --shadow-soft: 0 24px 60px rgba(15, 23, 42, 0.12);
+            --label-font-family: "Microsoft JhengHei", "PingFang TC", "Heiti TC", "Noto Sans TC", sans-serif;
         }
 
         body, html {
@@ -553,7 +554,8 @@
             height: 30.03mm;
             background-color: #ffffff;
             color: #000000;
-            font-family: 'Noto Sans TC', 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+            /* 列印區優先使用本機字型，避免 html2canvas 擷取極小字時 Google Web Font 發虛。 */
+            font-family: var(--label-font-family);
             font-weight: 700;
             padding: 0mm 0.5mm 0.5mm 0.5mm;
             box-sizing: border-box;
@@ -663,8 +665,8 @@
         }
         .row-barcode svg { height: 100%; width: 100%; display: block; }
 
-        /* 底部小字：置中 Y≈29mm */
-        .row-small-text { font-size: 7pt; text-align: center; margin-top: 0.1mm; font-family: 'Arial', sans-serif; }
+        /* 底部小字：沿用同一組列印字型，避免中英字混用時 PDF 更模糊。 */
+        .row-small-text { font-size: 7pt; text-align: center; margin-top: 0.1mm; font-family: var(--label-font-family); }
 
         /* ===== 新系統專屬版面 ===== */
         /* 第一列：機構｜購置日期｜使用年限（3 欄 flex） */
